@@ -1,0 +1,16 @@
+---
+Checks: >
+  -*,
+  clang-analyzer-*,
+  clang-diagnostic-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  readability-*,
+WarningsAsErrors: ''
+FormatStyle: none
+CheckOptions:
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: 'x|y|z'
+  - key: readability-identifier-length.IgnoredParameterNames
+    value: 'x|y|z'

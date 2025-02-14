@@ -1,0 +1,19 @@
+---
+BasedOnStyle: Microsoft
+AlignConsecutiveMacros: Consecutive
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterReturnType: All
+ColumnLimit: 80
+ContinuationIndentWidth: 4
+IncludeBlocks: Merge
+IndentPPDirectives: BeforeHash
+IndentWidth: 4
+PointerAlignment: Right
+ReflowComments: true
+SortIncludes: CaseInsensitive
+
+...

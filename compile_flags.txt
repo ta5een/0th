@@ -1,0 +1,4 @@
+-g
+-std=c99
+-Wall
+-Wextra

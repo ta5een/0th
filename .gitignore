@@ -1,0 +1,8 @@
+# macOS
+.DS_Store
+Thumbs.db
+._*
+
+# Build artifacts
+.cache
+compiler
