@@ -11,5 +11,5 @@ C99-compatible compiler such as `clang` or `gcc`.
 To build the compiler, run:
 
 ```sh
-cc -o compiler compiler.c
+cc -o 0c 0c.c
 ```
