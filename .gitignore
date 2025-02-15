@@ -3,6 +3,9 @@
 Thumbs.db
 ._*
 
+# LLDB artifacts
+*.dSYM
+
 # Build artifacts
 .cache
 compiler
