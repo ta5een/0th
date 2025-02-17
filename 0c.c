@@ -2,12 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/**
+ * Shift command line arguments array slice forwards, essentially popping
+ * off the first argument.
+ */
 #define SHIFT_ARGS(argv, argc) (assert((argc) > 0), (argc)--, *(argv)++)
 
 void
 cmd_print_usage(const char *exe_path)
 {
-    fprintf(stderr, "USAGE: %s file\n", exe_path);
+    fprintf(stderr, "USAGE: %s <file>\n", exe_path);
 }
 
 int
