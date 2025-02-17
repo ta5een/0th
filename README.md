@@ -1,15 +1,13 @@
-# `0.lang`
+# 0th
 
-`0.lang` is a low-level, minimalistic stack-based language. It is inspired by
-Forth and other concatenative languages, focusing on minimal runtime overhead.
+0th is a stack-based language, heavily inspired by Forth. Its goal is to be
+easily ported and bootstrapped from a small binary, gradually building into a
+fully functional environment.
 
 ## Building
 
-`0.lang` is designed to be extremely easy to compile. All you need is a
-C99-compatible compiler such as `clang` or `gcc`.
-
-To build the compiler, run:
+To build 0th, you need a C99-compatible compiler such as `clang` or `gcc`:
 
 ```sh
-cc -o 0c 0c.c
+cc -o 0th 0th.c
 ```
