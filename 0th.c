@@ -1,29 +1,26 @@
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /**
- * Shift command line arguments array slice forwards, essentially popping
- * off the first argument.
+ * Arbitrary buffer size.
  */
-#define SHIFT_ARGS(argv, argc) (assert((argc) > 0), (argc)--, *(argv)++)
-
-void
-cmd_print_usage(const char *exe_path)
-{
-    fprintf(stderr, "USAGE: %s <file>\n", exe_path);
-}
+#define SOURCE_BUFFER_SIZE (1024)
 
 int
-main(int argc, char *argv[])
+main(void)
 {
-    const char *exe_path = SHIFT_ARGS(argv, argc);
+    int result = EXIT_SUCCESS;
 
-    if (argc < 1)
+    char source_buffer[SOURCE_BUFFER_SIZE];
+    memset(source_buffer, '\0', SOURCE_BUFFER_SIZE);
+    if (fgets(source_buffer, SOURCE_BUFFER_SIZE, stdin) == NULL)
     {
-        cmd_print_usage(exe_path);
-        return EXIT_FAILURE;
+        result = EXIT_FAILURE;
+        perror("Failed to read from stdin");
+        goto exit;
     }
 
-    return EXIT_SUCCESS;
+exit:
+    return result;
 }
