@@ -6,7 +6,7 @@
 
 #define CELL_TYPE uintptr_t
 #define CELL_SIZE (sizeof(CELL_TYPE))
-#define BYTE_TYPE char
+#define BYTE_TYPE unsigned char
 #define BYTE_SIZE (sizeof(BYTE_TYPE))
 
 #define MEMORY_SIZE      (UINTMAX_C(5) * 1024 * BYTE_SIZE)
