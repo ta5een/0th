@@ -15,10 +15,9 @@
 #define PSTACK_SIZE      (PSTACK_NUM_CELLS * CELL_SIZE)
 #define RSTACK_SIZE      (RSTACK_NUM_CELLS * CELL_SIZE)
 
-/**
- * These constants define where exactly each global variable is defined in main
- * memory. These values will be placed at the very beginning of memory, although
- * this can be changed by adjusting IDX_STATE.
+/* These constants define the exact locations of global variables in main
+ * memory. They are placed at the very beginning of memory by default, though
+ * this can be adjusted by modifying IDX_STATE.
  *
  * The layout of these variables resembles the following struct:
  *
@@ -33,9 +32,8 @@
  *         cell_t rstack[RSTACK_NUM_CELLS];
  *     };
  *
- * You may have noticed that IDX_HERE_START is not listed in this struct. This
- * is because it is to be only used as a marker, indicating the cell right after
- * rstack's last cell.
+ * Note that IDX_HERE_START is not part of this struct. Instead, it serves as a
+ * marker indicating the cell immediately after the last element of rstack.
  */
 #define IDX_STATE      (0)
 #define IDX_LATEST     (IDX_STATE + CELL_SIZE)
@@ -50,50 +48,40 @@
 #define FLAG_HIDDEN    (0x20)
 #define MASK_LENGTH    (0x1f)
 
-/**
- * A cell is the primary unit of information of a machine.
- */
+/* A cell is the primary unit of information of a machine. */
 typedef CELL_TYPE cell_t;
 
-/**
- * A byte is the smallest addressable unit of a machine that can contain a basic
+/* A byte is the smallest addressable unit of a machine that can store a basic
  * character set.
  */
 typedef BYTE_TYPE byte_t;
 
-/**
- * A contiguous array of bytes representing the program's main memory. To keep
- * things simple, the program will not allocate memory dynamically.
+/* A contiguous array of bytes representing the program's main memory. For
+ * simplicity, the program does not allocate memory dynamically.
  */
 byte_t memory[MEMORY_SIZE] = {0};
 
-/**
- * Is the interpreter executing code (0) or compiling a word (non-zero)?
+/* Indicates whether the interpreter is executing code (0) or compiling a word
+ * (non-zero).
  */
 cell_t *state;
-/**
- * The most recently defined word in the dictionary.
- */
+
+/* Points to the most recently defined word in the dictionary. */
 cell_t *latest;
-/**
- * The next free cell in memory. When compiling, compiled words will go here.
- */
+
+/* Points to the next free cell in memory. Compiled words will go here. */
 cell_t *here;
-/**
- * The index into the parameter stack currently being pointed to.
- */
+
+/* Points to the index of the current position in the parameter stack. */
 cell_t *psp;
-/**
- * The address of the beginning of the parameter stack.
- */
+
+/* Points to the base of the parameter stack. */
 cell_t *pstack;
-/**
- * The index into the return stack currently being pointed to.
- */
+
+/* Points to the index of the current position in the return stack. */
 cell_t *rsp;
-/**
- * The address of the beginning of the return stack.
- */
+
+/* Points to the base of the return stack. */
 cell_t *rstack;
 
 int
