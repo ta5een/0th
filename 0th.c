@@ -4,32 +4,65 @@
 
 #define USED(x) ((void)x)
 
+/* These constants define the fundamental data types of the interpreter.
+ *
+ * CELL_TYPE represents the primary unit of computation, typically used for
+ * integers and addresses stored on the stack. uintptr_t was chosen because
+ * it is an unsigned integer type capable of holding a pointer, ensuring
+ * compatibility across different architectures.
+ *
+ * BYTE_TYPE represents the smallest addressable unit in memory. unsigned char
+ * was chosen instead of char to align with the ANS Forth standard, which
+ * specifies that characters must be unsigned, at least 8 bits wide, of fixed
+ * width, and no larger than a cell. This also prevents implementation-defined
+ * behavior when working with raw memory operations.
+ */
 #define CELL_TYPE uintptr_t
 #define CELL_SIZE (sizeof(CELL_TYPE))
 #define BYTE_TYPE unsigned char
 #define BYTE_SIZE (sizeof(BYTE_TYPE))
 
-#define MEMORY_SIZE      (UINTMAX_C(5) * 1024 * BYTE_SIZE)
-#define PSTACK_NUM_CELLS (64)
-#define RSTACK_NUM_CELLS (64)
-#define PSTACK_SIZE      (PSTACK_NUM_CELLS * CELL_SIZE)
-#define RSTACK_SIZE      (RSTACK_NUM_CELLS * CELL_SIZE)
+/* Memory layout and stack sizes for the interpreter.
+ *
+ * MEMORY_SIZE defines the total size of the main memory, set to 5 KB
+ * (5 * 1024 bytes) as a reasonable starting size for the system.
+ *
+ * The interpreter has two stacks:
+ * - PSTACK (parameter stack, also known as the data stack) is used for
+ *   passing values between words.
+ * - RSTACK (return stack) is used for storing return addresses during
+ *   execution control flow.
+ *
+ * PSTACK_CELLS and RSTACK_CELLS define the number of cells each stack can hold.
+ * Both are set to 64 cells, following Brad Rodriguez's recommendation in
+ * "MOVING FORTH Part 1: Design Decisions in the Forth Kernel". While ANS Forth
+ * specifies a minimum of 32 cells for the parameter stack and 24 cells for
+ * the return stack, 64 cells for each provides a more practical balance.
+ *
+ * PSTACK_SIZE and RSTACK_SIZE calculate the actual memory size of each
+ * stack by multiplying the number of cells by the size of a single cell.
+ */
+#define MEMORY_SIZE  (UINTMAX_C(5) * 1024 * BYTE_SIZE)
+#define PSTACK_CELLS (64)
+#define RSTACK_CELLS (64)
+#define PSTACK_SIZE  (PSTACK_CELLS * CELL_SIZE)
+#define RSTACK_SIZE  (RSTACK_CELLS * CELL_SIZE)
 
-/* These constants define the exact locations of global variables in main
- * memory. They are placed at the very beginning of memory by default, though
+/* These constants define the exact locations of the interpreter context in main
+ * memory. By default, the context is placed at the beginning of memory, but
  * this can be adjusted by modifying IDX_STATE.
  *
  * The layout of these variables resembles the following struct:
  *
- *     struct memory_header
+ *     struct interpreter_context
  *     {
  *         cell_t state;
  *         cell_t latest;
  *         cell_t here;
  *         cell_t psp;
- *         cell_t pstack[PSTACK_NUM_CELLS];
+ *         cell_t pstack[PSTACK_CELLS];
  *         cell_t rsp;
- *         cell_t rstack[RSTACK_NUM_CELLS];
+ *         cell_t rstack[RSTACK_CELLS];
  *     };
  *
  * Note that IDX_HERE_START is not part of this struct. Instead, it serves as a
@@ -48,10 +81,10 @@
 #define FLAG_HIDDEN    (0x20)
 #define MASK_LENGTH    (0x1f)
 
-/* A cell is the primary unit of information of a machine. */
+/* A cell is the primary unit of information in the machine. */
 typedef CELL_TYPE cell_t;
 
-/* A byte is the smallest addressable unit of a machine that can store a basic
+/* A byte is the smallest addressable unit in the machine that can store a basic
  * character set.
  */
 typedef BYTE_TYPE byte_t;
@@ -89,10 +122,15 @@ main(void)
 {
     int result = EXIT_SUCCESS;
 
-    // Ensure there is enough memory to be used at runtime.
+    /* Verify that the intepreter context, parameter stack, and return stack all
+     * fit within the program's main memory. Ideally, there should be enough
+     * remaining memory to store the dictionary at runtime.
+     */
     assert(IDX_HERE_START < MEMORY_SIZE);
 
-    // Assign each variable its appropriate location in main memory.
+    /* Map each field in the intepreter context to their respective locations in
+     * main memory.
+     */
     state = (cell_t *)&memory[IDX_STATE];
     latest = (cell_t *)&memory[IDX_LATEST];
     here = (cell_t *)&memory[IDX_HERE];
@@ -101,6 +139,7 @@ main(void)
     rsp = (cell_t *)&memory[IDX_RSP];
     rstack = (cell_t *)&memory[IDX_RSTACK];
 
+    /* Initialize the intepreter context. */
     *state = 0;
     *latest = 0;
     *psp = *rsp = 0;
