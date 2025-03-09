@@ -1,8 +1,13 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define USED(x)      ((void)x)
-#define EXPECT(cond) if (!(cond))
+#define USED(x) ((void)x)
+
+#ifdef __GNUC__
+    #define EXPECT(cond) if (__builtin_expect(!(cond), 0))
+#else
+    #define EXPECT(cond) if (!(cond))
+#endif
 
 /* These constants define the fundamental data types of the interpreter.
  *
