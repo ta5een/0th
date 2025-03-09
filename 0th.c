@@ -59,13 +59,13 @@
  *
  *     struct interpreter_context
  *     {
- *         Zth_Cell state;
- *         Zth_Cell latest;
- *         Zth_Cell here;
- *         Zth_Cell psp;
- *         Zth_Cell pstack[PSTACK_CELLS];
- *         Zth_Cell rsp;
- *         Zth_Cell rstack[RSTACK_CELLS];
+ *         Cell state;
+ *         Cell latest;
+ *         Cell here;
+ *         Cell psp;
+ *         Cell pstack[PSTACK_CELLS];
+ *         Cell rsp;
+ *         Cell rstack[RSTACK_CELLS];
  *     };
  *
  * Note that IDX_HERE_START is not part of this struct. Instead, it serves as a
@@ -85,12 +85,12 @@
 #define MASK_LENGTH    (0x1f)
 
 /* A cell is the primary unit of information in the machine. */
-typedef CELL_TYPE Zth_Cell;
+typedef CELL_TYPE Cell;
 
 /* A byte is the smallest addressable unit in the machine that can store a basic
  * character set.
  */
-typedef BYTE_TYPE Zth_Byte;
+typedef BYTE_TYPE Byte;
 
 /* A list of all possible error codes.
  *
@@ -116,7 +116,7 @@ typedef enum
 #define ERROR(error_name, error_value) ERROR_##error_name = (error_value),
     LIST_OF_ERRORS
 #undef ERROR
-} Zth_Error;
+} Error;
 
 /* Human-readable representations of all the error codes defined above. */
 const char *error_names[] = {
@@ -128,37 +128,37 @@ const char *error_names[] = {
 /* A contiguous array of bytes representing the program's main memory. For
  * simplicity, the program does not allocate memory dynamically.
  */
-Zth_Byte memory[MEMORY_SIZE] = {0};
+Byte memory[MEMORY_SIZE] = {0};
 
 /* Indicates whether the interpreter is executing code (0) or compiling a word
  * (non-zero).
  */
-Zth_Cell *state;
+Cell *state;
 
 /* Points to the most recently defined word in the dictionary. */
-Zth_Cell *latest;
+Cell *latest;
 
 /* Points to the next free cell in memory. Compiled words will go here. */
-Zth_Cell *here;
+Cell *here;
 
 /* Points to the index of the current position in the parameter stack. */
-Zth_Cell *psp;
+Cell *psp;
 
 /* Points to the base of the parameter stack. */
-Zth_Cell *pstack;
+Cell *pstack;
 
 /* Points to the index of the current position in the return stack. */
-Zth_Cell *rsp;
+Cell *rsp;
 
 /* Points to the base of the return stack. */
-Zth_Cell *rstack;
+Cell *rstack;
 
 /* Pops the top cell from the parameter stack and stores it in `value`.
  *
  * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
  */
-Zth_Error
-pop(Zth_Cell *value)
+Error
+pop(Cell *value)
 {
     EXPECT(*psp > 0)
     {
@@ -174,8 +174,8 @@ pop(Zth_Cell *value)
  *
  * If there is no space left on the stack, returns ERROR_PSTACK_OVERFLOW.
  */
-Zth_Error
-push(Zth_Cell data)
+Error
+push(Cell data)
 {
     EXPECT(*psp < PSTACK_SIZE)
     {
@@ -193,7 +193,7 @@ push(Zth_Cell data)
  * ERROR_UNKNOWN instead.
  */
 const char *
-error_as_string(Zth_Error error)
+error_as_string(Error error)
 {
     EXPECT(ERROR_OK >= error && error >= ERROR_UNKNOWN)
     {
@@ -217,13 +217,13 @@ main(void)
     /* Map each field in the intepreter context to their respective locations in
      * main memory.
      */
-    state = (Zth_Cell *)&memory[IDX_STATE];
-    latest = (Zth_Cell *)&memory[IDX_LATEST];
-    here = (Zth_Cell *)&memory[IDX_HERE];
-    psp = (Zth_Cell *)&memory[IDX_PSP];
-    pstack = (Zth_Cell *)&memory[IDX_PSTACK];
-    rsp = (Zth_Cell *)&memory[IDX_RSP];
-    rstack = (Zth_Cell *)&memory[IDX_RSTACK];
+    state = (Cell *)&memory[IDX_STATE];
+    latest = (Cell *)&memory[IDX_LATEST];
+    here = (Cell *)&memory[IDX_HERE];
+    psp = (Cell *)&memory[IDX_PSP];
+    pstack = (Cell *)&memory[IDX_PSTACK];
+    rsp = (Cell *)&memory[IDX_RSP];
+    rstack = (Cell *)&memory[IDX_RSTACK];
 
     /* Initialize the intepreter context. */
     *state = 0;
