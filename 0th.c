@@ -6,16 +6,14 @@
 
 /* These constants define the fundamental data types of the interpreter.
  *
- * CELL_TYPE represents the primary unit of computation, typically used for
- * integers and addresses stored on the stack. uintptr_t was chosen because
- * it is an unsigned integer type capable of holding a pointer, ensuring
- * compatibility across different architectures.
+ * CELL_TYPE represents the fundamental unit of computation in the intepreter.
+ * It is an implementation-defined type that can hold pointers and integer
+ * values efficiently, typically corresponding to the native word size of the
+ * system.
  *
- * BYTE_TYPE represents the smallest addressable unit in memory. unsigned char
- * was chosen instead of char to align with the ANS Forth standard, which
- * specifies that characters must be unsigned, at least 8 bits wide, of fixed
- * width, and no larger than a cell. This also prevents implementation-defined
- * behavior when working with raw memory operations.
+ * BYTE_TYPE represents the smallest addressable unit of memory. It is an
+ * implementation-defined type that corresponds to an 8-bit byte on most
+ * systems.
  */
 #define CELL_TYPE uintptr_t
 #define CELL_SIZE (sizeof(CELL_TYPE))
@@ -56,13 +54,13 @@
  *
  *     struct interpreter_context
  *     {
- *         cell_t state;
- *         cell_t latest;
- *         cell_t here;
- *         cell_t psp;
- *         cell_t pstack[PSTACK_CELLS];
- *         cell_t rsp;
- *         cell_t rstack[RSTACK_CELLS];
+ *         Zth_Cell state;
+ *         Zth_Cell latest;
+ *         Zth_Cell here;
+ *         Zth_Cell psp;
+ *         Zth_Cell pstack[PSTACK_CELLS];
+ *         Zth_Cell rsp;
+ *         Zth_Cell rstack[RSTACK_CELLS];
  *     };
  *
  * Note that IDX_HERE_START is not part of this struct. Instead, it serves as a
@@ -82,40 +80,40 @@
 #define MASK_LENGTH    (0x1f)
 
 /* A cell is the primary unit of information in the machine. */
-typedef CELL_TYPE cell_t;
+typedef CELL_TYPE Zth_Cell;
 
 /* A byte is the smallest addressable unit in the machine that can store a basic
  * character set.
  */
-typedef BYTE_TYPE byte_t;
+typedef BYTE_TYPE Zth_Byte;
 
 /* A contiguous array of bytes representing the program's main memory. For
  * simplicity, the program does not allocate memory dynamically.
  */
-byte_t memory[MEMORY_SIZE] = {0};
+Zth_Byte memory[MEMORY_SIZE] = {0};
 
 /* Indicates whether the interpreter is executing code (0) or compiling a word
  * (non-zero).
  */
-cell_t *state;
+Zth_Cell *state;
 
 /* Points to the most recently defined word in the dictionary. */
-cell_t *latest;
+Zth_Cell *latest;
 
 /* Points to the next free cell in memory. Compiled words will go here. */
-cell_t *here;
+Zth_Cell *here;
 
 /* Points to the index of the current position in the parameter stack. */
-cell_t *psp;
+Zth_Cell *psp;
 
 /* Points to the base of the parameter stack. */
-cell_t *pstack;
+Zth_Cell *pstack;
 
 /* Points to the index of the current position in the return stack. */
-cell_t *rsp;
+Zth_Cell *rsp;
 
 /* Points to the base of the return stack. */
-cell_t *rstack;
+Zth_Cell *rstack;
 
 int
 main(void)
@@ -131,13 +129,13 @@ main(void)
     /* Map each field in the intepreter context to their respective locations in
      * main memory.
      */
-    state = (cell_t *)&memory[IDX_STATE];
-    latest = (cell_t *)&memory[IDX_LATEST];
-    here = (cell_t *)&memory[IDX_HERE];
-    psp = (cell_t *)&memory[IDX_PSP];
-    pstack = (cell_t *)&memory[IDX_PSTACK];
-    rsp = (cell_t *)&memory[IDX_RSP];
-    rstack = (cell_t *)&memory[IDX_RSTACK];
+    state = (Zth_Cell *)&memory[IDX_STATE];
+    latest = (Zth_Cell *)&memory[IDX_LATEST];
+    here = (Zth_Cell *)&memory[IDX_HERE];
+    psp = (Zth_Cell *)&memory[IDX_PSP];
+    pstack = (Zth_Cell *)&memory[IDX_PSTACK];
+    rsp = (Zth_Cell *)&memory[IDX_RSP];
+    rstack = (Zth_Cell *)&memory[IDX_RSTACK];
 
     /* Initialize the intepreter context. */
     *state = 0;
