@@ -1,8 +1,8 @@
 #include <assert.h>
-#include <stdint.h>
 #include <stdlib.h>
 
-#define USED(x) ((void)x)
+#define USED(x)      ((void)x)
+#define EXPECT(cond) if (!(cond))
 
 /* These constants define the fundamental data types of the interpreter.
  *
@@ -87,6 +87,39 @@ typedef CELL_TYPE Zth_Cell;
  */
 typedef BYTE_TYPE Zth_Byte;
 
+/* A list of all possible error codes.
+ *
+ * New errors may be added, but ERROR_UNKNOWN must always be the last entry.
+ */
+#define LIST_OF_ERRORS                                                         \
+    ERROR(OK, 0)                                                               \
+    ERROR(ABORT, -1)                                                           \
+    ERROR(PSTACK_OVERFLOW, -2)                                                 \
+    ERROR(PSTACK_UNDERFLOW, -3)                                                \
+    ERROR(RSTACK_OVERFLOW, -4)                                                 \
+    ERROR(RSTACK_UNDERFLOW, -5)                                                \
+    ERROR(UNKNOWN, -6)
+
+/* A fixed set of return values for all interpreter operations, indicating
+ * success or failure.
+ *
+ * ERROR_OK indicates success, while all other values represent specific failure
+ * conditions.
+ */
+typedef enum
+{
+#define ERROR(error_name, error_value) ERROR_##error_name = (error_value),
+    LIST_OF_ERRORS
+#undef ERROR
+} Zth_Error;
+
+/* Human-readable representations of all the error codes defined above. */
+const char *error_names[] = {
+#define ERROR(error_name, _) "ERROR_" #error_name,
+    LIST_OF_ERRORS
+#undef ERROR
+};
+
 /* A contiguous array of bytes representing the program's main memory. For
  * simplicity, the program does not allocate memory dynamically.
  */
@@ -114,6 +147,56 @@ Zth_Cell *rsp;
 
 /* Points to the base of the return stack. */
 Zth_Cell *rstack;
+
+/* Pops the top cell from the parameter stack and stores it in `value`.
+ *
+ * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
+ */
+Zth_Error
+pop(Zth_Cell *value)
+{
+    EXPECT(*psp > 0)
+    {
+        return ERROR_PSTACK_UNDERFLOW;
+    }
+
+    (*psp) -= 1;
+    *value = pstack[(*psp)];
+    return ERROR_OK;
+}
+
+/* Pushes `data` onto the parameter stack.
+ *
+ * If there is no space left on the stack, returns ERROR_PSTACK_OVERFLOW.
+ */
+Zth_Error
+push(Zth_Cell data)
+{
+    EXPECT(*psp < PSTACK_SIZE)
+    {
+        return ERROR_PSTACK_OVERFLOW;
+    }
+
+    pstack[(*psp)] = data;
+    (*psp) += 1;
+    return ERROR_OK;
+}
+
+/* Returns the string representation of the given error code.
+ *
+ * If the provided error code is invalid, returns the string representation of
+ * ERROR_UNKNOWN instead.
+ */
+const char *
+error_as_string(Zth_Error error)
+{
+    EXPECT(ERROR_OK >= error && error >= ERROR_UNKNOWN)
+    {
+        return error_names[abs(ERROR_UNKNOWN)];
+    }
+
+    return error_names[abs(error)];
+}
 
 int
 main(void)
