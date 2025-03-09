@@ -1,13 +1,18 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define USED(x) ((void)x)
-
+/* Although I want this program to be platform-agnostic, it would be nice to
+ * leverage compiler-specific intrinsics. I'm sure other compilers provide
+ * something like __builtin_expect.
+ */
 #ifdef __GNUC__
-    #define EXPECT(cond) if (__builtin_expect(!(cond), 0))
+    #define UNLIKELY(cond) __builtin_expect(cond, 0)
 #else
-    #define EXPECT(cond) if (!(cond))
+    #define UNLIKELY(cond) (cond)
 #endif
+
+#define USED(x)      ((void)x)
+#define EXPECT(cond) if (UNLIKELY(!(cond)))
 
 /* These constants define the fundamental data types of the interpreter.
  *
@@ -20,10 +25,10 @@
  * implementation-defined type that corresponds to an 8-bit byte on most
  * systems.
  */
-#define CELL_TYPE uintptr_t
-#define CELL_SIZE (sizeof(CELL_TYPE))
 #define BYTE_TYPE unsigned char
 #define BYTE_SIZE (sizeof(BYTE_TYPE))
+#define CELL_TYPE uintptr_t
+#define CELL_SIZE (sizeof(CELL_TYPE))
 
 /* Memory layout and stack sizes for the interpreter.
  *
@@ -45,9 +50,9 @@
  * PSTACK_SIZE and RSTACK_SIZE calculate the actual memory size of each
  * stack by multiplying the number of cells by the size of a single cell.
  */
-#define MEMORY_SIZE  (UINTMAX_C(5) * 1024 * BYTE_SIZE)
-#define PSTACK_CELLS (64)
-#define RSTACK_CELLS (64)
+#define MEMORY_SIZE  (5UL * 1024UL * BYTE_SIZE)
+#define PSTACK_CELLS (64U)
+#define RSTACK_CELLS (64U)
 #define PSTACK_SIZE  (PSTACK_CELLS * CELL_SIZE)
 #define RSTACK_SIZE  (RSTACK_CELLS * CELL_SIZE)
 
@@ -84,13 +89,8 @@
 #define FLAG_HIDDEN    (0x20)
 #define MASK_LENGTH    (0x1f)
 
-/* A cell is the primary unit of information in the machine. */
-typedef CELL_TYPE Cell;
-
-/* A byte is the smallest addressable unit in the machine that can store a basic
- * character set.
- */
 typedef BYTE_TYPE Byte;
+typedef CELL_TYPE Cell;
 
 /* A list of all possible error codes.
  *
