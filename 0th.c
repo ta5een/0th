@@ -51,39 +51,10 @@
  * stack by multiplying the number of cells by the size of a single cell.
  */
 #define MEMORY_SIZE  (5UL * 1024UL * BYTE_SIZE)
-#define PSTACK_CELLS (64U)
-#define RSTACK_CELLS (64U)
-#define PSTACK_SIZE  (PSTACK_CELLS * CELL_SIZE)
-#define RSTACK_SIZE  (RSTACK_CELLS * CELL_SIZE)
-
-/* These constants define the exact locations of the interpreter context in main
- * memory. By default, the context is placed at the beginning of memory, but
- * this can be adjusted by modifying IDX_STATE.
- *
- * The layout of these variables resembles the following struct:
- *
- *     struct interpreter_context
- *     {
- *         Cell state;
- *         Cell latest;
- *         Cell here;
- *         Cell psp;
- *         Cell pstack[PSTACK_CELLS];
- *         Cell rsp;
- *         Cell rstack[RSTACK_CELLS];
- *     };
- *
- * Note that IDX_HERE_START is not part of this struct. Instead, it serves as a
- * marker indicating the cell immediately after the last element of rstack.
- */
-#define IDX_STATE      (0)
-#define IDX_LATEST     (IDX_STATE + CELL_SIZE)
-#define IDX_HERE       (IDX_LATEST + CELL_SIZE)
-#define IDX_PSP        (IDX_HERE + CELL_SIZE)
-#define IDX_PSTACK     (IDX_PSP + CELL_SIZE)
-#define IDX_RSP        (IDX_PSTACK + PSTACK_SIZE)
-#define IDX_RSTACK     (IDX_RSP + CELL_SIZE)
-#define IDX_HERE_START (IDX_RSTACK + RSTACK_SIZE)
+#define PSTACK_ITEMS (64U)
+#define RSTACK_ITEMS (64U)
+#define PSTACK_SIZE  (PSTACK_ITEMS * CELL_SIZE)
+#define RSTACK_SIZE  (RSTACK_ITEMS * CELL_SIZE)
 
 #define FLAG_IMMEDIATE (0x80)
 #define FLAG_HIDDEN    (0x20)
@@ -125,48 +96,43 @@ const char *error_names[] = {
 #undef ERROR
 };
 
-/* A contiguous array of bytes representing the program's main memory. For
- * simplicity, the program does not allocate memory dynamically.
- */
-Byte memory[MEMORY_SIZE] = {0};
+typedef struct
+{
+    /* The program's main memory. */
+    Byte memory[MEMORY_SIZE];
 
-/* Indicates whether the interpreter is executing code (0) or compiling a word
- * (non-zero).
- */
-Cell *state;
+    /* Is the VM executing code (0) or compiling a word (non-zero)? */
+    Cell mode;
+    /* Address to the most recently-defined word in the dictionary. */
+    Cell latest;
+    /* Next free cell in memory. Compiled words will go here. */
+    Cell here;
 
-/* Points to the most recently defined word in the dictionary. */
-Cell *latest;
+    /* Index of the current position in the parameter stack. */
+    Cell psp;
+    /* Base of the parameter stack. */
+    Cell pstack[PSTACK_ITEMS];
 
-/* Points to the next free cell in memory. Compiled words will go here. */
-Cell *here;
-
-/* Points to the index of the current position in the parameter stack. */
-Cell *psp;
-
-/* Points to the base of the parameter stack. */
-Cell *pstack;
-
-/* Points to the index of the current position in the return stack. */
-Cell *rsp;
-
-/* Points to the base of the return stack. */
-Cell *rstack;
+    /* Index of the current position in the return stack. */
+    Cell rsp;
+    /* Base of the return stack. */
+    Cell rstack[RSTACK_ITEMS];
+} VmState;
 
 /* Pops the top cell from the parameter stack and stores it in `value`.
  *
  * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
  */
 Error
-pop(Cell *value)
+pop(VmState *vm, Cell *value)
 {
-    EXPECT(*psp > 0)
+    EXPECT(vm->psp > 0)
     {
         return ERROR_PSTACK_UNDERFLOW;
     }
 
-    (*psp) -= 1;
-    *value = pstack[(*psp)];
+    vm->psp -= 1;
+    *value = vm->pstack[vm->psp];
     return ERROR_OK;
 }
 
@@ -175,15 +141,15 @@ pop(Cell *value)
  * If there is no space left on the stack, returns ERROR_PSTACK_OVERFLOW.
  */
 Error
-push(Cell data)
+push(VmState *vm, Cell data)
 {
-    EXPECT(*psp < PSTACK_SIZE)
+    EXPECT(vm->psp < PSTACK_SIZE)
     {
         return ERROR_PSTACK_OVERFLOW;
     }
 
-    pstack[(*psp)] = data;
-    (*psp) += 1;
+    vm->pstack[vm->psp] = data;
+    vm->psp += 1;
     return ERROR_OK;
 }
 
@@ -207,29 +173,8 @@ int
 main(void)
 {
     int result = EXIT_SUCCESS;
-
-    /* Verify that the intepreter context, parameter stack, and return stack all
-     * fit within the program's main memory. Ideally, there should be enough
-     * remaining memory to store the dictionary at runtime.
-     */
-    assert(IDX_HERE_START < MEMORY_SIZE);
-
-    /* Map each field in the intepreter context to their respective locations in
-     * main memory.
-     */
-    state = (Cell *)&memory[IDX_STATE];
-    latest = (Cell *)&memory[IDX_LATEST];
-    here = (Cell *)&memory[IDX_HERE];
-    psp = (Cell *)&memory[IDX_PSP];
-    pstack = (Cell *)&memory[IDX_PSTACK];
-    rsp = (Cell *)&memory[IDX_RSP];
-    rstack = (Cell *)&memory[IDX_RSTACK];
-
-    /* Initialize the intepreter context. */
-    *state = 0;
-    *latest = 0;
-    *psp = *rsp = 0;
-    *here = IDX_HERE_START;
+    VmState vm = {0};
+    USED(vm);
 
     return result;
 }
