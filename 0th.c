@@ -14,47 +14,52 @@
 #define USED(x)      ((void)x)
 #define EXPECT(cond) if (UNLIKELY(!(cond)))
 
-/* These constants define the fundamental data types of the interpreter.
+/* Fundamental data types of the interpreter.
  *
- * CELL_TYPE represents the fundamental unit of computation in the intepreter.
- * It is an implementation-defined type that can hold pointers and integer
- * values efficiently, typically corresponding to the native word size of the
- * system.
+ * CELL_TYPE represents the unit of computation. It can hold pointers and
+ * integer values efficiently, typically corresponding to the native word size
+ * of the system.
  *
- * BYTE_TYPE represents the smallest addressable unit of memory. It is an
- * implementation-defined type that corresponds to an 8-bit byte on most
- * systems.
+ * BYTE_TYPE represents the smallest addressable unit of memory. It typically
+ * corresponds to an 8-bit byte on most systems.
+ *
+ * FCELL_TYPE represents the unit of floating-point calculations. It defaults
+ * to double-precision floating-point arithmetic (IEEE 754), but may be
+ * redefined as single-precision (float) if the target platform doesn't support
+ * double-precision.
  */
-#define BYTE_TYPE unsigned char
-#define BYTE_SIZE (sizeof(BYTE_TYPE))
-#define CELL_TYPE uintptr_t
-#define CELL_SIZE (sizeof(CELL_TYPE))
+#define BYTE_TYPE  unsigned char
+#define BYTE_SIZE  (sizeof(BYTE_TYPE))
+#define CELL_TYPE  uintptr_t
+#define CELL_SIZE  (sizeof(CELL_TYPE))
+#define FCELL_TYPE double
+#define FCELL_SIZE (sizeof(FCELL_TYPE))
 
 /* Memory layout and stack sizes for the interpreter.
  *
  * MEMORY_SIZE defines the total size of the main memory, set to 5 KB
  * (5 * 1024 bytes) as a reasonable starting size for the system.
  *
- * The interpreter has two stacks:
- * - PSTACK (parameter stack, also known as the data stack) is used for
- *   passing values between words.
- * - RSTACK (return stack) is used for storing return addresses during
- *   execution control flow.
+ * The interpreter has three LIFO stacks:
+ * - PSTACK (parameter stack, or data stack), for passing values between words.
+ * - RSTACK (return stack), for storing return addresses for control flow.
+ * - FSTACK (floating-point stack), for floating-point operations.
  *
- * PSTACK_CELLS and RSTACK_CELLS define the number of cells each stack can hold.
- * Both are set to 64 cells, following Brad Rodriguez's recommendation in
- * "MOVING FORTH Part 1: Design Decisions in the Forth Kernel". While ANS Forth
- * specifies a minimum of 32 cells for the parameter stack and 24 cells for
- * the return stack, 64 cells for each provides a more practical balance.
+ * PSTACK and RSTACK each have a capacity of 64 cells, following Brad
+ * Rodriguez's recommendation in "MOVING FORTH Part 1: Design Decisions in the
+ * Forth Kernel". This should be more than sufficient as ANS Forth specifies a
+ * minimum of 32 cells for the PSTACK and 24 cells for the RSTACK.
  *
- * PSTACK_SIZE and RSTACK_SIZE calculate the actual memory size of each
- * stack by multiplying the number of cells by the size of a single cell.
+ * FSTACK has a capacity of 6 floating-point cells, which is the minimum
+ * required by ANS Forth.
  */
 #define MEMORY_SIZE  (5UL * 1024UL * BYTE_SIZE)
 #define PSTACK_ITEMS (64U)
 #define RSTACK_ITEMS (64U)
+#define FSTACK_ITEMS (6U)
 #define PSTACK_SIZE  (PSTACK_ITEMS * CELL_SIZE)
 #define RSTACK_SIZE  (RSTACK_ITEMS * CELL_SIZE)
+#define FSTACK_SIZE  (FSTACK_ITEMS * FCELL_SIZE)
 
 #define FLAG_IMMEDIATE (0x80)
 #define FLAG_HIDDEN    (0x20)
@@ -62,6 +67,7 @@
 
 typedef BYTE_TYPE Byte;
 typedef CELL_TYPE Cell;
+typedef FCELL_TYPE FCell;
 
 /* A list of all possible error codes.
  *
@@ -117,6 +123,11 @@ typedef struct
     Cell rsp;
     /* Base of the return stack. */
     Cell rstack[RSTACK_ITEMS];
+
+    /* Index of the current position in the floating point stack. */
+    FCell fsp;
+    /* Base of the floating point stack. */
+    FCell fstack[FSTACK_ITEMS];
 } VmState;
 
 /* Pops the top cell from the parameter stack and stores it in `value`.
