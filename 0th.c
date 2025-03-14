@@ -126,7 +126,7 @@ typedef struct
     Cell rstack[RSTACK_ITEMS];
 
     /* Index of the current position in the floating point stack. */
-    FCell fsp;
+    Cell fsp;
     /* Base of the floating point stack. */
     FCell fstack[FSTACK_ITEMS];
 } VmState;
