@@ -1,0 +1,62 @@
+\ This module exports a function "fibonacci".
+\ 
+\ Quam odio fames suscipit pretium risus vitae malesuada. Ex augue nostra metus
+\ quam orci facilisi. Faucibus porta commodo nisi dictumst; phasellus congue
+\ scelerisque. Fames augue pretium nullam semper erat montes ex.
+\ 
+\ Consectetur scelerisque facilisis aptent vel, duis aliquam quisque. Justo
+\ ultrices maecenas mi iaculis inceptos. Mauris egestas erat leo platea luctus
+\ sodales. Velit leo metus litora dolor risus aenean.
+MODULE: fibonacci
+
+\ The definitions below will be available for use outside this module.
+PUBLIC>
+
+\ Given an unsigned integer u1, calculate a new value, u2, which equals to the
+\ number in the Fibonacci sequence whose index equals to u1.
+\ 
+\ Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+\ tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+\ quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+\ consequat.
+\ 
+\ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore
+\ eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+\ sunt in culpa qui officia deserunt mollit anim id est laborum.
+: fibonacci ( u1 -- u2 ) [
+  [
+    { 0 [ 0 ] }
+    { 1 [ 1 ] }
+    [
+      dup 1- fibonacci
+      swap 2- fibonacci
+      add
+    ]
+  ] case
+]
+
+( Given an unsigned integer u1, calculate a new value, u2, which equals to the
+  number in the Fibonacci sequence whose index equals to u1.
+
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+  tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
+  quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+  consequat.
+
+  Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore
+  eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident,
+  sunt in culpa qui officia deserunt mollit anim id est laborum.
+)
+: fibonacci ( u1 -- u2 ) [
+  [
+    { 0 [ 0 ] }
+    { 1 [ 1 ] }
+    [
+      dup 1- fibonacci
+      swap 2- fibonacci
+      add
+    ]
+  ] case
+]
+
+\ vim:ft=forth
