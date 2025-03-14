@@ -81,7 +81,9 @@ typedef FCELL_TYPE FCell;
     ERROR(PSTACK_UNDERFLOW, -3)                                                \
     ERROR(RSTACK_OVERFLOW, -4)                                                 \
     ERROR(RSTACK_UNDERFLOW, -5)                                                \
-    ERROR(UNKNOWN, -6)
+    ERROR(FSTACK_OVERFLOW, -6)                                                 \
+    ERROR(FSTACK_UNDERFLOW, -7)                                                \
+    ERROR(UNKNOWN, ERROR_FSTACK_UNDERFLOW - 1)
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
