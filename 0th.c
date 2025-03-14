@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Although I want this program to be platform-agnostic, it would be nice to
  * leverage compiler-specific intrinsics. I'm sure other compilers provide
@@ -133,6 +134,23 @@ typedef struct
     FCell fstack[FSTACK_ITEMS];
 } VmState;
 
+void
+vm_initialize(VmState *vm)
+{
+    vm->mode = 0;
+    vm->latest = 0;
+    vm->here = 0;
+
+    vm->psp = 0;
+    vm->rsp = 0;
+    vm->fsp = 0;
+
+    memset(vm->memory, 0, MEMORY_SIZE);
+    memset(vm->pstack, 0, PSTACK_SIZE);
+    memset(vm->rstack, 0, RSTACK_SIZE);
+    memset(vm->fstack, 0, FSTACK_SIZE);
+}
+
 /* Pops the top cell from the parameter stack and stores it in `value`.
  *
  * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
@@ -192,6 +210,8 @@ main(void)
         fprintf(stderr, "ERROR: Failed to allocate VM\n");
         return EXIT_FAILURE;
     }
+
+    vm_initialize(vm);
 
     /* BRK: BEFORE RETURN */
     free(vm);
