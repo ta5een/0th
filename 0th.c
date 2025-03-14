@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 /* Although I want this program to be platform-agnostic, it would be nice to
@@ -183,9 +184,14 @@ error_as_string(Error error)
 int
 main(void)
 {
-    int result = EXIT_SUCCESS;
-    VmState vm = {0};
-    USED(vm);
+    VmState *vm = malloc(sizeof(VmState));
+    if (!vm)
+    {
+        fprintf(stderr, "ERROR: Failed to allocate VM\n");
+        return EXIT_FAILURE;
+    }
 
-    return result;
+    /* BRK: BEFORE RETURN */
+    free(vm);
+    return EXIT_SUCCESS;
 }
