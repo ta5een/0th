@@ -132,10 +132,15 @@ typedef struct
     Cell fsp;
     /* Base of the floating point stack. */
     FCell fstack[FSTACK_ITEMS];
-} VmState;
+} Vm;
 
+/* Initializes the interpreter.
+ *
+ * TODO: All stack pointers will point to the first element, even when the
+ * stack is empty. Will this be a problem?
+ */
 void
-vm_initialize(VmState *vm)
+vm_initialize(Vm *vm)
 {
     vm->mode = 0;
     vm->latest = 0;
@@ -156,7 +161,7 @@ vm_initialize(VmState *vm)
  * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
  */
 Error
-pop(VmState *vm, Cell *value)
+vm_pstack_pop(Vm *vm, Cell *value)
 {
     EXPECT(vm->psp > 0)
     {
@@ -173,7 +178,7 @@ pop(VmState *vm, Cell *value)
  * If there is no space left on the stack, returns ERROR_PSTACK_OVERFLOW.
  */
 Error
-push(VmState *vm, Cell data)
+vm_pstack_push(Vm *vm, Cell data)
 {
     EXPECT(vm->psp < PSTACK_SIZE)
     {
@@ -204,7 +209,7 @@ error_as_string(Error error)
 int
 main(void)
 {
-    VmState *vm = malloc(sizeof(VmState));
+    Vm *vm = malloc(sizeof(Vm));
     if (!vm)
     {
         fprintf(stderr, "ERROR: Failed to allocate VM\n");
