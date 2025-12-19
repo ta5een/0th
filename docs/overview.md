@@ -17,15 +17,14 @@ system implemented in 0th itself.
 
 ## Design Philosophy
 
-- **Forth-inspired**: Draw inspiration from Forth standards (ANS Forth, Forth
-  2012, Forth 200x) without strict adherence, borrowing features and design
-  decisions that align with project direction
-- **Learning-focused**: Prioritize code readability and comprehensive
-  documentation over performance optimization, as understanding the
-  implementation is a primary goal
-- **Portable bootstrap**: Leverage C's portability for the initial compiler,
-  with architecture-specific code isolated and clearly documented where
-  necessary for bare-metal targets
+- **Forth-inspired**: Draw inspiration from Forth standards without strict
+  adherence
+- **Learning-focused**: Prioritize code readability and documentation over
+  performance
+- **Minimal bootstrap**: Keep the initial C99 compiler minimal and
+  understandable
+- **Portable foundation**: Leverage C99 for portability, isolate
+  architecture-specific code
 
 ## Project Status
 
