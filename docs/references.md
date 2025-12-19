@@ -1,11 +1,25 @@
 # References
 
-## Standards
+## Standards (Learning Resources)
+
+### Forth 2012
+
+The most recent published Forth standard, available at
+[forth-standard.org](https://forth-standard.org). Design rationale and
+community discussions inform implementation choices, though this project does
+not claim standards compliance.
 
 ### ANS Forth (X3.215-1994)
 
-The American National Standard for Forth. Defines minimum requirements for
-stack sizes and standard word behavior.
+The American National Standard for Forth, published in 1994 and adopted as an
+international standard in 1997 (ISO/IEC 15145:1997). Historical reference for
+understanding core design decisions.
+
+### Forth 200x Process
+
+Ongoing standardization process with proposals and discussions at
+[forth200x.org](http://www.forth200x.org). Provides insight into language
+evolution and design tradeoffs.
 
 ## Recommended Reading
 
