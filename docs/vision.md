@@ -1,4 +1,4 @@
-# Vision & Philosophy
+# Vision
 
 ## Purpose
 
@@ -33,14 +33,16 @@ operating system development.
 
 ## The Vision
 
-Build a set of tools that can be:
+Build a bare-metal operating system that can be:
 
-1. **Initially compiled** on any system with a C99 compiler
-2. **Progressively bootstrapped** until reaching a bootable operating system
+1. **Bootstrapped** from a minimal C99 VM
+2. **Self-hosting** - able to compile itself
 3. **Self-contained** - the system, tools, and applications all written in 0th
 
-The C99 "setup" functionality should be minimal - just enough to get the basic
-0th compiler running. From there, the system builds itself in 0th.
+The C99 VM serves as a hosted development environment for running and testing
+0th programs. The key insight: one of those 0th programs is a code generator
+that produces RISC-V binaries, enabling the system to build itself for
+bare-metal targets.
 
 ## The Problem with Conventional Toolchains
 
@@ -73,25 +75,27 @@ Forth offers an elegant alternative:
 
 ## The Bootstrapping Path
 
-1. **Stage 0**: Minimal C99 implementation of 0th compiler
-   - Just enough to compile basic 0th code
-   - Portable to any C99-compliant platform
+1. **Stage 0**: Minimal C99 VM
+   - Runs 0th programs on the host (development environment)
+   - Implements core language semantics and stack operations
 
-2. **Stage 1**: Self-hosting compiler written in 0th
-   - Can compile 0th code to native code
-   - Compiled by the Stage 0 compiler
+2. **Stage 1**: RISC-V code generator written in 0th
+   - Runs in the Stage 0 VM
+   - Generates bare-metal RISC-V binaries
+   - Produces bootable images with an interactive 0th environment
 
-3. **Stage 2**: System tools written in 0th
+3. **Stage 2**: Bootable bare-metal 0th system
+   - RISC-V image runs in QEMU
+   - Interactive environment for defining and executing 0th words
+   - Can generate new code and extend itself
+
+4. **Stage 3**: System tools written in 0th
    - Assembler, linker, core utilities
-   - All running on native 0th
+   - Developed interactively in the bare-metal environment
 
-4. **Stage 3**: Bootable OS kernel
-   - Written entirely in 0th
-   - Includes basic drivers and system services
-
-5. **Stage 4**: Complete environment
+5. **Stage 4**: Complete self-hosted environment
    - Applications, libraries, utilities
-   - Fully self-contained system
+   - Fully self-contained system running on bare-metal
 
 ## Target Platforms
 
