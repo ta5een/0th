@@ -3,17 +3,17 @@
 ## What is 0th?
 
 0th is a stack-based language, heavily inspired by Forth. It bootstraps from a
-C-based compiler to eventually become self-hosting, with the majority of the
-system implemented in 0th itself.
+C-based VM to eventually become self-hosting, with the majority of the system
+implemented in 0th itself.
 
 ## Project Goals
 
-- **Self-hosting**: Bootstrap from a C-based compiler to compile a new compiler
-  written in 0th itself, enabling the system to build itself
+- **Self-hosting**: Bootstrap from a C-based VM to run a compiler written in
+  0th itself, enabling the system to build itself
 - **Bare-metal focused**: Target bare-metal environments across different
   architectures, testable via QEMU with the goal of running on real hardware
-- **Minimal bootstrap dependencies**: Initial compiler requires only a C99
-  toolchain, making it easily portable
+- **Minimal bootstrap dependencies**: Initial VM requires only a C99 toolchain,
+  making it easily portable
 
 ## Design Philosophy
 
@@ -21,8 +21,7 @@ system implemented in 0th itself.
   adherence
 - **Learning-focused**: Prioritize code readability and documentation over
   performance
-- **Minimal bootstrap**: Keep the initial C99 compiler minimal and
-  understandable
+- **Minimal bootstrap**: Keep the initial C99 VM minimal and understandable
 - **Portable foundation**: Leverage C99 for portability, isolate
   architecture-specific code
 
