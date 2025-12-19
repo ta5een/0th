@@ -13,8 +13,8 @@
     #define UNLIKELY(cond) (cond)
 #endif
 
-#define USED(x)      ((void)x)
-#define EXPECT(cond) if (UNLIKELY(!(cond)))
+#define USED(x)       ((void)x)
+#define REQUIRE(cond) if (UNLIKELY(!(cond)))
 
 /* Fundamental data types of the interpreter.
  *
@@ -163,7 +163,7 @@ vm_initialize(Vm *vm)
 Error
 vm_pstack_pop(Vm *vm, Cell *value)
 {
-    EXPECT(vm->psp > 0)
+    REQUIRE(vm->psp > 0)
     {
         return ERROR_PSTACK_UNDERFLOW;
     }
@@ -180,7 +180,7 @@ vm_pstack_pop(Vm *vm, Cell *value)
 Error
 vm_pstack_push(Vm *vm, Cell data)
 {
-    EXPECT(vm->psp < PSTACK_SIZE)
+    REQUIRE(vm->psp < PSTACK_SIZE)
     {
         return ERROR_PSTACK_OVERFLOW;
     }
@@ -198,7 +198,7 @@ vm_pstack_push(Vm *vm, Cell data)
 const char *
 error_as_string(Error error)
 {
-    EXPECT(ERROR_OK >= error && error >= ERROR_UNKNOWN)
+    REQUIRE(ERROR_OK >= error && error >= ERROR_UNKNOWN)
     {
         return error_names[abs(ERROR_UNKNOWN)];
     }
