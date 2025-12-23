@@ -53,6 +53,21 @@ clang-tidy 0th.c
 
 Checks enabled: `clang-analyzer-*`, `bugprone-*`, `performance-*`, `portability-*`, `readability-*`
 
+## Git Commit Conventions
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+**Subject line:**
+- Keep under 52 characters
+- Format: `type: description`
+- Use imperative mood (e.g., "Add feature" not "Added feature")
+- Common types: `docs:`, `feat:`, `fix:`, `chore:`
+
+**Commit body:**
+- Use imperative mood throughout
+- Think of commits as patches: describe what changes when applied
+- Example: "Add X" or "Fix Y" not "Added X" or "Fixed Y"
+
 ## Development Approach
 
 This is a personal learning project where the maintainer uses LLMs for documentation and planning while maintaining hands-on control of implementation. The project is worked on intermittently, so:
