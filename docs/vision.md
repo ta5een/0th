@@ -97,6 +97,38 @@ Forth offers an elegant alternative:
    - Applications, libraries, utilities
    - Fully self-contained system running on bare-metal
 
+## Why a VM for Stage 0?
+
+The Stage 0 implementation is a VM rather than a compiler. This is a deliberate
+choice about how the system becomes self-defining.
+
+**Self-definition**: A C-based compiler would implement the code generator in
+C, meaning C code determines how 0th compiles to machine code. The VM approach
+inverts this: the C code only interprets 0th semantics (stack operations, word
+dispatch), while the code generator is written in 0th itself. The system
+defines its own compilation - calling conventions, instruction selection, and
+code generation logic are all expressed in 0th, not inherited from C
+implementation choices.
+
+**Minimal C footprint**: The VM is simpler to implement than a compiler. No
+code generation, optimization passes, or linking logic in C. This minimizes the
+C code that must be understood and maintained. Less C code means fewer
+opportunities for C-influenced design decisions to shape the system.
+
+**Separation of concerns**: The C VM contains zero platform-specific code. It
+implements abstract 0th semantics. Instead, the Stage 1 code generator, written
+in 0th and running in the VM, would handle all architecture-specific concerns.
+This means a clean boundary between the bootstrap host and target system.
+
+**Testability on hosted environment**: The VM allows testing 0th programs on
+the host system before bare-metal is available. Programs can be executed,
+debugged, and refined in the hosted environment. This includes developing and
+testing the Stage 1 code generator itself.
+
+This treats C99 as temporary scaffolding. Once bootstrapped, the system is
+entirely self-defining - its compilation and runtime behavior determined by 0th
+code, not by the C implementation that launched it.
+
 ## Target Platforms
 
 The minimal C99 implementation targets bare-metal environments:
