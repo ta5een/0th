@@ -100,14 +100,22 @@ typedef enum
 #undef ERROR
 } Vm_Error;
 
+/* Controls how the interpreter processes words. */
+typedef enum
+{
+    /* Executes words immediately as encountered. */
+    VM_MODE_INTERPRET = 0,
+    /* Compiles words into the current definition in the dictionary. */
+    VM_MODE_COMPILE = 1,
+} Vm_Mode;
 
 typedef struct
 {
     /* The program's main memory. */
     Byte memory[MEMORY_SIZE];
 
-    /* Is the VM executing code (0) or compiling a word (non-zero)? */
-    Cell mode;
+    /* Current execution mode. */
+    Vm_Mode mode;
     /* Address to the most recently-defined word in the dictionary. */
     Cell latest;
     /* Next free cell in memory. Compiled words will go here. */
@@ -137,7 +145,7 @@ typedef struct
 void
 vm_initialize(Vm *vm)
 {
-    vm->mode = 0;
+    vm->mode = VM_MODE_INTERPRET;
     vm->latest = 0;
     vm->here = 0;
 
