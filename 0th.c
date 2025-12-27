@@ -23,8 +23,8 @@
  * integer values efficiently, typically corresponding to the native word size
  * of the system.
  *
- * BYTE_TYPE represents the smallest addressable unit of memory. It typically
- * corresponds to an 8-bit byte on most systems.
+ * BYTE_TYPE represents the smallest addressable unit of memory (the address
+ * unit). It typically corresponds to an 8-bit byte on most systems.
  *
  * FCELL_TYPE represents the unit of floating-point calculations. It defaults
  * to double-precision floating-point arithmetic (IEEE 754), but may be
