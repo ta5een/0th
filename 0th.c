@@ -195,7 +195,7 @@ vm_pstack_push(Vm *vm, Cell data)
     return VM_ERROR_OK;
 }
 
-/* Human-readable representations of all the error codes defined above. */
+/* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
 #define ERROR(error_name, _) "VM_ERROR_" #error_name,
     LIST_OF_ERRORS
