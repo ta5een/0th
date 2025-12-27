@@ -142,7 +142,7 @@ typedef struct
  * TODO: All stack pointers will point to the first element, even when the
  * stack is empty. Will this be a problem?
  */
-void
+Vm_Error
 vm_initialize(Vm *vm)
 {
     vm->mode = VM_MODE_INTERPRET;
@@ -157,6 +157,8 @@ vm_initialize(Vm *vm)
     memset(vm->pstack, 0, PSTACK_SIZE);
     memset(vm->rstack, 0, RSTACK_SIZE);
     memset(vm->fstack, 0, FSTACK_SIZE);
+
+    return VM_ERROR_OK;
 }
 
 /* Pops the top cell from the parameter stack and stores it in `value`.
@@ -216,17 +218,31 @@ vm_error_as_string(Vm_Error error)
     return vm_error_names[abs(error)];
 }
 
+void
+vm_report_error(Vm_Error error, const char *context_msg)
+{
+    fprintf(stderr, "%s: %s\n", vm_error_as_string(error), context_msg);
+}
+
 int
 main(void)
 {
     Vm *vm = malloc(sizeof(Vm));
     if (!vm)
     {
-        fprintf(stderr, "ERROR: Failed to allocate VM\n");
+        vm_report_error(VM_ERROR_ABORT, "failed to allocate VM");
         return EXIT_FAILURE;
     }
 
-    vm_initialize(vm);
+    Vm_Error err = VM_ERROR_OK;
+
+    err = vm_initialize(vm);
+    if (err != VM_ERROR_OK)
+    {
+        vm_report_error(err, "failed to initialize VM");
+        return EXIT_FAILURE;
+    }
+
 
     /* BRK: BEFORE RETURN */
     free(vm);
