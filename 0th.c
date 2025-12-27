@@ -74,7 +74,7 @@ typedef FCELL_TYPE FCell;
 
 /* A list of all possible error codes.
  *
- * New errors may be added, but ERROR_UNKNOWN must always be the last entry.
+ * New errors may be added, but VM_ERROR_UNKNOWN must always be the last entry.
  */
 #define LIST_OF_ERRORS                                                         \
     ERROR(OK, 0)                                                               \
@@ -85,24 +85,24 @@ typedef FCELL_TYPE FCell;
     ERROR(RSTACK_UNDERFLOW, -5)                                                \
     ERROR(FSTACK_OVERFLOW, -6)                                                 \
     ERROR(FSTACK_UNDERFLOW, -7)                                                \
-    ERROR(UNKNOWN, ERROR_FSTACK_UNDERFLOW - 1)
+    ERROR(UNKNOWN, VM_ERROR_FSTACK_UNDERFLOW - 1)
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
  *
- * ERROR_OK indicates success, while all other values represent specific failure
- * conditions.
+ * VM_ERROR_OK indicates success, while all other values represent specific
+ * failure conditions.
  */
 typedef enum
 {
-#define ERROR(error_name, error_value) ERROR_##error_name = (error_value),
+#define ERROR(error_name, error_value) VM_ERROR_##error_name = (error_value),
     LIST_OF_ERRORS
 #undef ERROR
-} Error;
+} Vm_Error;
 
 /* Human-readable representations of all the error codes defined above. */
-const char *error_names[] = {
-#define ERROR(error_name, _) "ERROR_" #error_name,
+const char *vm_error_names[] = {
+#define ERROR(error_name, _) "VM_ERROR_" #error_name,
     LIST_OF_ERRORS
 #undef ERROR
 };
@@ -159,52 +159,52 @@ vm_initialize(Vm *vm)
 
 /* Pops the top cell from the parameter stack and stores it in `value`.
  *
- * If the stack is empty, returns ERROR_PSTACK_UNDERFLOW.
+ * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
  */
-Error
+Vm_Error
 vm_pstack_pop(Vm *vm, Cell *value)
 {
     REQUIRE(vm->psp > 0)
     {
-        return ERROR_PSTACK_UNDERFLOW;
+        return VM_ERROR_PSTACK_UNDERFLOW;
     }
 
     vm->psp -= 1;
     *value = vm->pstack[vm->psp];
-    return ERROR_OK;
+    return VM_ERROR_OK;
 }
 
 /* Pushes `data` onto the parameter stack.
  *
- * If there is no space left on the stack, returns ERROR_PSTACK_OVERFLOW.
+ * If there is no space left on the stack, returns VM_ERROR_PSTACK_OVERFLOW.
  */
-Error
+Vm_Error
 vm_pstack_push(Vm *vm, Cell data)
 {
     REQUIRE(vm->psp < PSTACK_SIZE)
     {
-        return ERROR_PSTACK_OVERFLOW;
+        return VM_ERROR_PSTACK_OVERFLOW;
     }
 
     vm->pstack[vm->psp] = data;
     vm->psp += 1;
-    return ERROR_OK;
+    return VM_ERROR_OK;
 }
 
 /* Returns the string representation of the given error code.
  *
  * If the provided error code is invalid, returns the string representation of
- * ERROR_UNKNOWN instead.
+ * VM_ERROR_UNKNOWN instead.
  */
 const char *
-error_as_string(Error error)
+vm_error_as_string(Vm_Error error)
 {
-    REQUIRE(ERROR_OK >= error && error >= ERROR_UNKNOWN)
+    REQUIRE(VM_ERROR_OK >= error && error >= VM_ERROR_UNKNOWN)
     {
-        return error_names[abs(ERROR_UNKNOWN)];
+        return vm_error_names[abs(VM_ERROR_UNKNOWN)];
     }
 
-    return error_names[abs(error)];
+    return vm_error_names[abs(error)];
 }
 
 int
