@@ -85,7 +85,7 @@ typedef FCELL_TYPE FCell;
     ERROR(RSTACK_UNDERFLOW, -5)                                                \
     ERROR(FSTACK_OVERFLOW, -6)                                                 \
     ERROR(FSTACK_UNDERFLOW, -7)                                                \
-    ERROR(UNKNOWN, VM_ERROR_FSTACK_UNDERFLOW - 1)
+    ERROR(UNKNOWN, -8) /* Must be last */
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
