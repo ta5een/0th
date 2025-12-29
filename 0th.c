@@ -136,23 +136,6 @@ typedef struct
     FCell fstack[FSTACK_ITEMS];
 } Vm;
 
-/* Pops the top cell from the parameter stack and stores it in `value`.
- *
- * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
- */
-Vm_Error
-vm_pstack_pop(Vm *vm, Cell *value)
-{
-    REQUIRE(vm->psp > 0)
-    {
-        return VM_ERROR_PSTACK_UNDERFLOW;
-    }
-
-    vm->psp -= 1;
-    *value = vm->pstack[vm->psp];
-    return VM_ERROR_OK;
-}
-
 /* Pushes `data` onto the parameter stack.
  *
  * If there is no space left on the stack, returns VM_ERROR_PSTACK_OVERFLOW.
@@ -167,6 +150,23 @@ vm_pstack_push(Vm *vm, Cell data)
 
     vm->pstack[vm->psp] = data;
     vm->psp += 1;
+    return VM_ERROR_OK;
+}
+
+/* Pops the top cell from the parameter stack and stores it in `data`.
+ *
+ * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
+ */
+Vm_Error
+vm_pstack_pop(Vm *vm, Cell *data)
+{
+    REQUIRE(vm->psp > 0)
+    {
+        return VM_ERROR_PSTACK_UNDERFLOW;
+    }
+
+    vm->psp -= 1;
+    *data = vm->pstack[vm->psp];
     return VM_ERROR_OK;
 }
 
