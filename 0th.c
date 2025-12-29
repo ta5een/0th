@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 /* Although I want this program to be platform-agnostic, it would be nice to
  * leverage compiler-specific intrinsics. I'm sure other compilers provide
@@ -137,30 +136,6 @@ typedef struct
     FCell fstack[FSTACK_ITEMS];
 } Vm;
 
-/* Initializes the interpreter.
- *
- * TODO: All stack pointers will point to the first element, even when the
- * stack is empty. Will this be a problem?
- */
-Vm_Error
-vm_initialize(Vm *vm)
-{
-    vm->mode = VM_MODE_INTERPRET;
-    vm->latest = 0;
-    vm->here = 0;
-
-    vm->psp = 0;
-    vm->rsp = 0;
-    vm->fsp = 0;
-
-    memset(vm->memory, 0, MEMORY_SIZE);
-    memset(vm->pstack, 0, PSTACK_SIZE);
-    memset(vm->rstack, 0, RSTACK_SIZE);
-    memset(vm->fstack, 0, FSTACK_SIZE);
-
-    return VM_ERROR_OK;
-}
-
 /* Pops the top cell from the parameter stack and stores it in `value`.
  *
  * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
@@ -227,24 +202,9 @@ vm_report_error(Vm_Error error, const char *context_msg)
 int
 main(void)
 {
-    Vm *vm = malloc(sizeof(Vm));
-    if (!vm)
-    {
-        vm_report_error(VM_ERROR_ABORT, "failed to allocate VM");
-        return EXIT_FAILURE;
-    }
-
-    Vm_Error err = VM_ERROR_OK;
-
-    err = vm_initialize(vm);
-    if (err != VM_ERROR_OK)
-    {
-        vm_report_error(err, "failed to initialize VM");
-        return EXIT_FAILURE;
-    }
-
+    Vm vm = {0};
+    USED(vm);
 
     /* BRK: BEFORE RETURN */
-    free(vm);
     return EXIT_SUCCESS;
 }
