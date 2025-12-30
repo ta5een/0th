@@ -13,7 +13,7 @@
     #define UNLIKELY(cond) (cond)
 #endif
 
-#define USED(x)       ((void)(x))
+#define UNUSED(x)     ((void)(x))
 #define REQUIRE(cond) if (UNLIKELY(!(cond)))
 
 /* Fundamental data types of the interpreter.
@@ -203,7 +203,7 @@ int
 main(void)
 {
     Vm vm = {0};
-    USED(vm);
+    UNUSED(vm);
 
     /* BRK: BEFORE RETURN */
     return EXIT_SUCCESS;
