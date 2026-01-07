@@ -232,6 +232,36 @@ vm_pstack_pop(Vm *vm, Cell *data)
     return VM_ERROR_OK;
 }
 
+WARN_UNUSED_RESULT
+Vm_Error
+vm_rstack_push(Vm *vm, Cell address)
+{
+    REQUIRE(vm->rsp < VM_RSTACK_SIZE)
+    {
+        return VM_ERROR_RSTACK_OVERFLOW;
+    }
+
+    vm->rstack[vm->rsp] = address;
+    vm->rsp += 1;
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_rstack_pop(Vm *vm, Cell *address)
+{
+    REQUIRE(vm->rsp > 0)
+    {
+        return VM_ERROR_RSTACK_UNDERFLOW;
+    }
+
+    // The return address previously at vm->rsp can now be overwritten.
+    vm->rsp -= 1;
+    // The out parameter is given a copy of the now-discarded return address.
+    *address = vm->rstack[vm->rsp];
+    return VM_ERROR_OK;
+}
+
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
 #define VM_ERROR_ITEM(name, _) "VM_ERROR_" #name,
