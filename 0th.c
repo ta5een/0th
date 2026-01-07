@@ -112,9 +112,6 @@ typedef enum
 
 typedef struct
 {
-    /* The program's main memory. */
-    Byte memory[VM_MEMORY_SIZE];
-
     /* Current execution mode. */
     Vm_Mode mode;
     /* Address to the most recently-defined word in the dictionary. */
@@ -136,6 +133,13 @@ typedef struct
     Cell fsp;
     /* Base of the floating point stack. */
     FCell fstack[VM_FSTACK_COUNT];
+
+    /* The program's main memory.
+     *
+     * Stores dictionary entries for all words (builtin and user-defined),
+     * compiled code for user-defined words, and variables.
+     */
+    Byte memory[VM_MEMORY_SIZE];
 } Vm;
 
 /* Pushes `data` onto the parameter stack.
