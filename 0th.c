@@ -7,7 +7,7 @@
  * leverage compiler-specific intrinsics. I'm sure other compilers provide
  * something like __builtin_expect.
  */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
     #define UNLIKELY(cond) __builtin_expect(cond, 0)
 #else
     #define UNLIKELY(cond) (cond)
