@@ -43,7 +43,7 @@ typedef VM_FCELL_TYPE FCell;
 
 /* Memory layout and stack sizes for the interpreter.
  *
- * MEMORY_SIZE defines the total size of the main memory, set to 5 KB
+ * VM_MEMORY_SIZE defines the total size of the main memory, set to 5 KB
  * (5 * 1024 bytes) as a reasonable starting size for the system.
  *
  * The interpreter has three LIFO stacks:
@@ -59,13 +59,13 @@ typedef VM_FCELL_TYPE FCell;
  * FSTACK has a capacity of 6 floating-point cells, which is the minimum
  * required by ANS Forth.
  */
-#define MEMORY_SIZE  (5UL * 1024UL * VM_BYTE_SIZE)
-#define PSTACK_ITEMS (64U)
-#define RSTACK_ITEMS (64U)
-#define FSTACK_ITEMS (6U)
-#define PSTACK_SIZE  (PSTACK_ITEMS * VM_CELL_SIZE)
-#define RSTACK_SIZE  (RSTACK_ITEMS * VM_CELL_SIZE)
-#define FSTACK_SIZE  (FSTACK_ITEMS * VM_FCELL_SIZE)
+#define VM_MEMORY_SIZE  (5UL * 1024UL * VM_BYTE_SIZE)
+#define VM_PSTACK_COUNT (64U)
+#define VM_RSTACK_COUNT (64U)
+#define VM_FSTACK_COUNT (6U)
+#define VM_PSTACK_SIZE  (VM_PSTACK_COUNT * VM_CELL_SIZE)
+#define VM_RSTACK_SIZE  (VM_RSTACK_COUNT * VM_CELL_SIZE)
+#define VM_FSTACK_SIZE  (VM_FSTACK_COUNT * VM_FCELL_SIZE)
 
 #define FLAG_IMMEDIATE (0x80)
 #define FLAG_HIDDEN    (0x20)
@@ -111,7 +111,7 @@ typedef enum
 typedef struct
 {
     /* The program's main memory. */
-    Byte memory[MEMORY_SIZE];
+    Byte memory[VM_MEMORY_SIZE];
 
     /* Current execution mode. */
     Vm_Mode mode;
@@ -123,17 +123,17 @@ typedef struct
     /* Index of the current position in the parameter stack. */
     Cell psp;
     /* Base of the parameter stack. */
-    Cell pstack[PSTACK_ITEMS];
+    Cell pstack[VM_PSTACK_COUNT];
 
     /* Index of the current position in the return stack. */
     Cell rsp;
     /* Base of the return stack. */
-    Cell rstack[RSTACK_ITEMS];
+    Cell rstack[VM_RSTACK_COUNT];
 
     /* Index of the current position in the floating point stack. */
     Cell fsp;
     /* Base of the floating point stack. */
-    FCell fstack[FSTACK_ITEMS];
+    FCell fstack[VM_FSTACK_COUNT];
 } Vm;
 
 /* Pushes `data` onto the parameter stack.
@@ -143,7 +143,7 @@ typedef struct
 Vm_Error
 vm_pstack_push(Vm *vm, Cell data)
 {
-    REQUIRE(vm->psp < PSTACK_SIZE)
+    REQUIRE(vm->psp < VM_PSTACK_SIZE)
     {
         return VM_ERROR_PSTACK_OVERFLOW;
     }
