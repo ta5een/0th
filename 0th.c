@@ -13,6 +13,12 @@
     #define UNLIKELY(cond) (cond)
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+    #define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+    #define WARN_UNUSED_RESULT
+#endif
+
 #define UNUSED(var)        ((void)(var))
 #define UNIMPLEMENTED(msg) assert(0 && (msg))
 
@@ -155,6 +161,7 @@ typedef struct
  *
  * If there is no space left on the stack, returns VM_ERROR_PSTACK_OVERFLOW.
  */
+WARN_UNUSED_RESULT
 Vm_Error
 vm_pstack_push(Vm *vm, Cell data)
 {
@@ -172,6 +179,7 @@ vm_pstack_push(Vm *vm, Cell data)
  *
  * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
  */
+WARN_UNUSED_RESULT
 Vm_Error
 vm_pstack_pop(Vm *vm, Cell *data)
 {
