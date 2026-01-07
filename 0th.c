@@ -13,7 +13,9 @@
     #define UNLIKELY(cond) (cond)
 #endif
 
-#define UNUSED(x)     ((void)(x))
+#define UNUSED(var)        ((void)(var))
+#define UNIMPLEMENTED(msg) assert(0 && (msg))
+
 #define REQUIRE(cond) if (UNLIKELY(!(cond)))
 
 /* Fundamental data types of the interpreter.
