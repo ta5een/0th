@@ -17,6 +17,15 @@
 #define UNIMPLEMENTED(msg) assert(0 && (msg))
 
 #define REQUIRE(cond) if (UNLIKELY(!(cond)))
+#define TRY(expr)                                                              \
+    do                                                                         \
+    {                                                                          \
+        Vm_Error err = (expr);                                                 \
+        if (err != VM_ERROR_OK)                                                \
+        {                                                                      \
+            return err;                                                        \
+        }                                                                      \
+    } while (0)
 
 /* Fundamental data types of the interpreter.
  *
