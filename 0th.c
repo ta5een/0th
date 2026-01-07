@@ -75,16 +75,16 @@ typedef VM_FCELL_TYPE FCell;
  *
  * New errors may be added, but VM_ERROR_UNKNOWN must always be the last entry.
  */
-#define LIST_OF_ERRORS                                                         \
-    ERROR(OK, 0)                                                               \
-    ERROR(ABORT, -1)                                                           \
-    ERROR(PSTACK_OVERFLOW, -2)                                                 \
-    ERROR(PSTACK_UNDERFLOW, -3)                                                \
-    ERROR(RSTACK_OVERFLOW, -4)                                                 \
-    ERROR(RSTACK_UNDERFLOW, -5)                                                \
-    ERROR(FSTACK_OVERFLOW, -6)                                                 \
-    ERROR(FSTACK_UNDERFLOW, -7)                                                \
-    ERROR(UNKNOWN, -8) /* Must be last */
+#define VM_ERROR_LIST                                                          \
+    VM_ERROR_ITEM(OK, 0)                                                       \
+    VM_ERROR_ITEM(ABORT, -1)                                                   \
+    VM_ERROR_ITEM(PSTACK_OVERFLOW, -2)                                         \
+    VM_ERROR_ITEM(PSTACK_UNDERFLOW, -3)                                        \
+    VM_ERROR_ITEM(RSTACK_OVERFLOW, -4)                                         \
+    VM_ERROR_ITEM(RSTACK_UNDERFLOW, -5)                                        \
+    VM_ERROR_ITEM(FSTACK_OVERFLOW, -6)                                         \
+    VM_ERROR_ITEM(FSTACK_UNDERFLOW, -7)                                        \
+    VM_ERROR_ITEM(UNKNOWN, -8) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -94,9 +94,9 @@ typedef VM_FCELL_TYPE FCell;
  */
 typedef enum
 {
-#define ERROR(error_name, error_value) VM_ERROR_##error_name = (error_value),
-    LIST_OF_ERRORS
-#undef ERROR
+#define VM_ERROR_ITEM(name, value) VM_ERROR_##name = (value),
+    VM_ERROR_LIST
+#undef VM_ERROR_ITEM
 } Vm_Error;
 
 /* Controls how the interpreter processes words. */
@@ -172,9 +172,9 @@ vm_pstack_pop(Vm *vm, Cell *data)
 
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
-#define ERROR(error_name, _) "VM_ERROR_" #error_name,
-    LIST_OF_ERRORS
-#undef ERROR
+#define VM_ERROR_ITEM(name, _) "VM_ERROR_" #name,
+    VM_ERROR_LIST
+#undef VM_ERROR_ITEM
 };
 
 /* Returns the string representation of the given error code.
