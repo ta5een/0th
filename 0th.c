@@ -204,10 +204,6 @@ vm_store_cell(Vm *vm, Cell data)
     return VM_ERROR_OK;
 }
 
-/* Pushes `data` onto the parameter stack.
- *
- * If there is no space left on the stack, returns VM_ERROR_PSTACK_OVERFLOW.
- */
 WARN_UNUSED_RESULT
 Vm_Error
 vm_pstack_push(Vm *vm, Cell data)
@@ -222,10 +218,6 @@ vm_pstack_push(Vm *vm, Cell data)
     return VM_ERROR_OK;
 }
 
-/* Pops the top cell from the parameter stack and stores it in `data`.
- *
- * If the stack is empty, returns VM_ERROR_PSTACK_UNDERFLOW.
- */
 WARN_UNUSED_RESULT
 Vm_Error
 vm_pstack_pop(Vm *vm, Cell *data)
