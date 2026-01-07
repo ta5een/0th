@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Although I want this program to be platform-agnostic, it would be nice to
  * leverage compiler-specific intrinsics. I'm sure other compilers provide
@@ -101,7 +102,9 @@ typedef VM_FCELL_TYPE FCell;
     VM_ERROR_ITEM(RSTACK_UNDERFLOW, -5)                                        \
     VM_ERROR_ITEM(FSTACK_OVERFLOW, -6)                                         \
     VM_ERROR_ITEM(FSTACK_UNDERFLOW, -7)                                        \
-    VM_ERROR_ITEM(UNKNOWN, -8) // Must be last
+    VM_ERROR_ITEM(INVALID_MEMORY_ADDRESS, -8)                                  \
+    VM_ERROR_ITEM(OUT_OF_MEMORY, -9)                                           \
+    VM_ERROR_ITEM(UNKNOWN, -10) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -156,6 +159,50 @@ typedef struct
      */
     Byte memory[VM_MEMORY_SIZE];
 } Vm;
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_write_byte(Vm *vm, Cell address, Byte data)
+{
+    REQUIRE(address + VM_BYTE_SIZE <= VM_MEMORY_SIZE)
+    {
+        return VM_ERROR_OUT_OF_MEMORY;
+    }
+
+    vm->memory[address] = data;
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_write_cell(Vm *vm, Cell address, Cell data)
+{
+    REQUIRE(address + VM_CELL_SIZE <= VM_MEMORY_SIZE)
+    {
+        return VM_ERROR_OUT_OF_MEMORY;
+    }
+
+    memcpy(vm->memory + address, &data, VM_CELL_SIZE);
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_store_byte(Vm *vm, Byte data)
+{
+    TRY(vm_write_byte(vm, vm->here, data));
+    vm->here += VM_BYTE_SIZE;
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_store_cell(Vm *vm, Cell data)
+{
+    TRY(vm_write_cell(vm, vm->here, data));
+    vm->here += VM_CELL_SIZE;
+    return VM_ERROR_OK;
+}
 
 /* Pushes `data` onto the parameter stack.
  *
