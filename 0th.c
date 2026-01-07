@@ -234,6 +234,19 @@ vm_pstack_pop(Vm *vm, Cell *data)
 
 WARN_UNUSED_RESULT
 Vm_Error
+vm_pstack_peek(Vm *vm, Cell *data)
+{
+    REQUIRE(vm->psp > 0)
+    {
+        return VM_ERROR_PSTACK_UNDERFLOW;
+    }
+
+    *data = vm->pstack[vm->psp - 1];
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+Vm_Error
 vm_rstack_push(Vm *vm, Cell address)
 {
     REQUIRE(vm->rsp < VM_RSTACK_SIZE)
@@ -259,6 +272,50 @@ vm_rstack_pop(Vm *vm, Cell *address)
     vm->rsp -= 1;
     // The out parameter is given a copy of the now-discarded return address.
     *address = vm->rstack[vm->rsp];
+    return VM_ERROR_OK;
+}
+
+#define VM_BUILTIN_LIST                                                        \
+    VM_BUILTIN_ITEM(drop, VM_DICT_FLAG_NONE)                                   \
+    VM_BUILTIN_ITEM(swap, VM_DICT_FLAG_NONE)                                   \
+    VM_BUILTIN_ITEM(dup, VM_DICT_FLAG_NONE)
+
+/* Helper macro for defining builtin handler functions.
+ *
+ * Expands to a function signature for a builtin handler with the given name.
+ * All builtin handlers have the signature: Vm_Error vm_builtin_NAME(Vm *vm)
+ */
+#define VM_BUILTIN_DEFINE(word) WARN_UNUSED_RESULT Vm_Error vm_builtin_##word
+
+/* Helper macro for returning from a builtin handler. */
+#define VM_BUILTIN_NEXT() UNIMPLEMENTED("VM_BUILTIN_NEXT")
+
+VM_BUILTIN_DEFINE(drop)(Vm *vm)
+{
+    Cell ignored_dropped_value = 0;
+    TRY(vm_pstack_pop(vm, &ignored_dropped_value));
+    VM_BUILTIN_NEXT();
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(swap)(Vm *vm)
+{
+    Cell x = 0;
+    Cell y = 0;
+    TRY(vm_pstack_pop(vm, &x));
+    TRY(vm_pstack_pop(vm, &y));
+    TRY(vm_pstack_push(vm, x));
+    TRY(vm_pstack_push(vm, y));
+    VM_BUILTIN_NEXT();
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(dup)(Vm *vm)
+{
+    Cell top = 0;
+    TRY(vm_pstack_peek(vm, &top));
+    TRY(vm_pstack_push(vm, top));
+    VM_BUILTIN_NEXT();
     return VM_ERROR_OK;
 }
 
