@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,10 +85,6 @@ typedef VM_FCELL_TYPE FCell;
 #define VM_PSTACK_SIZE  (VM_PSTACK_COUNT * VM_CELL_SIZE)
 #define VM_RSTACK_SIZE  (VM_RSTACK_COUNT * VM_CELL_SIZE)
 #define VM_FSTACK_SIZE  (VM_FSTACK_COUNT * VM_FCELL_SIZE)
-
-#define FLAG_IMMEDIATE (0x80)
-#define FLAG_HIDDEN    (0x20)
-#define MASK_LENGTH    (0x1f)
 
 /* A list of all possible error codes.
  *
@@ -319,6 +316,126 @@ VM_BUILTIN_DEFINE(dup)(Vm *vm)
     return VM_ERROR_OK;
 }
 
+/* Function pointer type for builtin primitive handlers.
+ *
+ * Each builtin takes a pointer to the VM and returns an error code.
+ */
+typedef Vm_Error (*Vm_Builtin_Handler)(Vm *);
+
+/* Dispatch table mapping builtin indices to handler functions.
+ *
+ * When the VM encounters a codeword in the range [0, VM_BUILTIN_HANDLER_COUNT),
+ * it treats it as a builtin primitive and calls the handler at that index in
+ * this array. The order of handlers matches the order in VM_BUILTIN_LIST.
+ */
+static const Vm_Builtin_Handler vm_builtin_handlers[] = {
+#define VM_BUILTIN_ITEM(name, _flags) vm_builtin_##name,
+    VM_BUILTIN_LIST
+#undef VM_BUILTIN_ITEM
+};
+
+#define VM_BUILTIN_HANDLER_COUNT                                               \
+    (sizeof(vm_builtin_handlers) / sizeof(Vm_Builtin_Handler))
+
+/* Length and flags byte for dictionary word names
+ *
+ * Each word's name is prefixed by a single byte that packs both the name
+ * length and flags. This is illustrated in the bit diagram below:
+ *
+ *   7 6 5 4 3 2 1 0
+ *   │ │ │ └─┴─┴─┴─┴─ word name length (5 bits, 0-31 chars)
+ *   │ │ └─────────── hidden flag
+ *   │ └───────────── (unused, reserved for future)
+ *   └─────────────── immediate flag
+ *
+ * VM_DICT_MASK_LENGTH extracts just the length bits when reading dictionary
+ * entries during word lookup.
+ */
+#define VM_DICT_MASK_LENGTH    (0x1f)
+#define VM_DICT_FLAG_NONE      (0x0)
+#define VM_DICT_FLAG_HIDDEN    (0x20)
+#define VM_DICT_FLAG_IMMEDIATE (0x80)
+
+/* Adds a builtin word to the dictionary.
+ *
+ * Creates a dictionary entry with the following structure:
+ *
+ *   <───────────── dictionary entry header ─────────────>
+ *   ┌──────────────────┬──────────┬────────────────╴╴╴╴╴╴╴┬──────────────────┐
+ *   │ link index       │ length + │ name + padding        │ codeword         │
+ *   │                  │ flags    │                       │                  │
+ *   └─(1 cell)─────────┴─(1 byte)─┴─(n bytes)──────╴╴╴╴╴╴╴┴─(1 cell)─────────┘
+ *
+ * - link:          index of previous word's header (forms linked list)
+ * - length+flags:  packed byte containing name length and flags
+ * - name:          variable-length name string (not null-terminated)
+ * - padding:       zero-padding to align codeword to cell boundary
+ * - codeword:      builtin index used to dispatch to vm_builtin_handlers[index]
+ */
+WARN_UNUSED_RESULT
+Vm_Error
+vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
+               Byte flags)
+{
+    assert(index < VM_BUILTIN_HANDLER_COUNT && "index out of bounds");
+    assert(name != NULL && "name is NULL");
+    assert(name_len > 0 && "name is empty");
+    assert(name_len <= VM_DICT_MASK_LENGTH && "name too long");
+    assert((flags & VM_DICT_MASK_LENGTH) == 0 && "flags overlap length");
+
+    Cell new_latest = vm->here;
+
+    TRY(vm_store_cell(vm, vm->latest));
+    TRY(vm_store_byte(vm, name_len | flags));
+
+    for (size_t i = 0; i < name_len; ++i)
+    {
+        TRY(vm_store_byte(vm, (Byte)name[i]));
+    }
+
+    // Pad to cell boundary so the codeword (which is written right after) is
+    // properly aligned. This prevents alignment faults when the codeword is
+    // read as a Cell.
+    while (vm->here & (VM_CELL_SIZE - 1))
+    {
+        TRY(vm_store_byte(vm, 0x0));
+    }
+
+    // Store builtin index as codeword. The VM treats codewords in the range
+    // [0, VM_BUILTIN_HANDLER_COUNT) as builtin primitives and dispatches them
+    // via the vm_builtin_handlers[] function pointer array.
+    TRY(vm_store_cell(vm, index));
+
+    vm->latest = new_latest;
+
+    return VM_ERROR_OK;
+}
+
+/* Number of bytes in a string literal, excluding the final NULL terminator.
+ * Evaluated at compile time.
+ *
+ * NOTE: Only use with string literals, not char pointers.
+ */
+#define VM_STR_LIT_LENGTH(str) (Byte)(sizeof(str) - 1)
+
+WARN_UNUSED_RESULT
+Vm_Error
+vm_register_builtins(Vm *vm)
+{
+    size_t index = 0;
+
+#define VM_BUILTIN_ITEM(name, flags)                                           \
+    {                                                                          \
+        TRY(vm_add_builtin(vm, index, #name, VM_STR_LIT_LENGTH(#name),         \
+                           flags));                                            \
+        index += 1;                                                            \
+    }
+    VM_BUILTIN_LIST
+#undef VM_BUILTIN_ITEM
+
+    return VM_ERROR_OK;
+}
+
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
 #define VM_ERROR_ITEM(name, _) "VM_ERROR_" #name,
@@ -352,8 +469,17 @@ int
 main(void)
 {
     Vm vm = {0};
-    UNUSED(vm);
 
-    /* BRK: BEFORE RETURN */
+    Vm_Error err = VM_ERROR_OK;
+    err = vm_register_builtins(&vm);
+    if (err != VM_ERROR_OK)
+    {
+        vm_report_error(err, "failed to register VM handlers");
+        return EXIT_FAILURE;
+    }
+
+    // Ignore -Wunneeded-internal-declaration errors for now
+    UNUSED(vm_builtin_handlers);
+
     return EXIT_SUCCESS;
 }
