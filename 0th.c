@@ -158,7 +158,7 @@ typedef struct
 } Vm;
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_write_byte(Vm *vm, Cell address, Byte data)
 {
     REQUIRE(address + VM_BYTE_SIZE <= VM_MEMORY_SIZE)
@@ -171,7 +171,7 @@ vm_write_byte(Vm *vm, Cell address, Byte data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_write_cell(Vm *vm, Cell address, Cell data)
 {
     REQUIRE(address + VM_CELL_SIZE <= VM_MEMORY_SIZE)
@@ -184,7 +184,7 @@ vm_write_cell(Vm *vm, Cell address, Cell data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_store_byte(Vm *vm, Byte data)
 {
     TRY(vm_write_byte(vm, vm->here, data));
@@ -193,7 +193,7 @@ vm_store_byte(Vm *vm, Byte data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_store_cell(Vm *vm, Cell data)
 {
     TRY(vm_write_cell(vm, vm->here, data));
@@ -202,7 +202,7 @@ vm_store_cell(Vm *vm, Cell data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_pstack_push(Vm *vm, Cell data)
 {
     REQUIRE(vm->psp < VM_PSTACK_SIZE)
@@ -216,7 +216,7 @@ vm_pstack_push(Vm *vm, Cell data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_pstack_pop(Vm *vm, Cell *data)
 {
     REQUIRE(vm->psp > 0)
@@ -230,7 +230,7 @@ vm_pstack_pop(Vm *vm, Cell *data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_pstack_peek(Vm *vm, Cell *data)
 {
     REQUIRE(vm->psp > 0)
@@ -243,7 +243,7 @@ vm_pstack_peek(Vm *vm, Cell *data)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_rstack_push(Vm *vm, Cell address)
 {
     REQUIRE(vm->rsp < VM_RSTACK_SIZE)
@@ -257,7 +257,7 @@ vm_rstack_push(Vm *vm, Cell address)
 }
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_rstack_pop(Vm *vm, Cell *address)
 {
     REQUIRE(vm->rsp > 0)
@@ -282,7 +282,8 @@ vm_rstack_pop(Vm *vm, Cell *address)
  * Expands to a function signature for a builtin handler with the given name.
  * All builtin handlers have the signature: Vm_Error vm_builtin_NAME(Vm *vm)
  */
-#define VM_BUILTIN_DEFINE(word) WARN_UNUSED_RESULT Vm_Error vm_builtin_##word
+#define VM_BUILTIN_DEFINE(word)                                                \
+    WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
 
 /* Helper macro for returning from a builtin handler. */
 #define VM_BUILTIN_NEXT() UNIMPLEMENTED("VM_BUILTIN_NEXT")
@@ -373,7 +374,7 @@ static const Vm_Builtin_Handler vm_builtin_handlers[] = {
  * - codeword:      builtin index used to dispatch to vm_builtin_handlers[index]
  */
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
                Byte flags)
 {
@@ -419,7 +420,7 @@ vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
 #define VM_STR_LIT_LENGTH(str) (Byte)(sizeof(str) - 1)
 
 WARN_UNUSED_RESULT
-Vm_Error
+static Vm_Error
 vm_register_builtins(Vm *vm)
 {
     size_t index = 0;
@@ -448,7 +449,7 @@ static const char *vm_error_names[] = {
  * If the provided error code is invalid, returns the string representation of
  * VM_ERROR_UNKNOWN instead.
  */
-const char *
+static const char *
 vm_error_as_string(Vm_Error error)
 {
     REQUIRE(VM_ERROR_OK >= error && error >= VM_ERROR_UNKNOWN)
@@ -459,7 +460,7 @@ vm_error_as_string(Vm_Error error)
     return vm_error_names[abs(error)];
 }
 
-void
+static void
 vm_report_error(Vm_Error error, const char *context_msg)
 {
     fprintf(stderr, "%s: %s\n", vm_error_as_string(error), context_msg);
@@ -480,6 +481,8 @@ main(void)
 
     // Ignore -Wunneeded-internal-declaration errors for now
     UNUSED(vm_builtin_handlers);
+    UNUSED(vm_rstack_pop);
+    UNUSED(vm_rstack_push);
 
     return EXIT_SUCCESS;
 }
