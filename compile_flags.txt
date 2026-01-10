@@ -4,4 +4,12 @@
 -Wall
 -Werror
 -Wextra
--fsanitize=address
+-Wcast-align
+-Wcast-qual
+-Wconversion
+-Wdouble-promotion
+-Wfloat-equal
+-Wformat=2
+-Wmissing-prototypes
+-Wshadow
+-fsanitize=undefined,address

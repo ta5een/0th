@@ -9,6 +9,13 @@ cc \
   -Wall \
   -Werror \
   -Wextra \
-  -fsanitize=address \
+  -Wcast-align \
+  -Wcast-qual \
+  -Wconversion \
+  -Wdouble-promotion \
+  -Wformat=2 \
+  -Wmissing-prototypes \
+  -Wshadow \
+  -fsanitize=undefined,address \
   -o 0th \
   0th.c
