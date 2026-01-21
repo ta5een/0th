@@ -500,12 +500,22 @@ int
 main(void)
 {
     Vm vm = {0};
-
     Vm_Error err = VM_ERROR_OK;
+
+    // Reserve first cell with a sentinel value so dictionary entries never
+    // start at address 0. This avoids the ambiguity where the address 0 could
+    // mean an empty value (i.e. NULL) or the first entry in the dictionary.
+    err = vm_store_cell(&vm, (Cell)-1);
+    if (err != VM_ERROR_OK)
+    {
+        vm_report_error(err, "failed to reserve sentinel cell");
+        return EXIT_FAILURE;
+    }
+
     err = vm_register_builtins(&vm);
     if (err != VM_ERROR_OK)
     {
-        vm_report_error(err, "failed to register VM handlers");
+        vm_report_error(err, "failed to register builtins");
         return EXIT_FAILURE;
     }
 
