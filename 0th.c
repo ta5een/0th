@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -91,6 +92,8 @@ typedef VM_FCELL_TYPE FCell;
 #define VM_RSTACK_SIZE  (VM_RSTACK_COUNT * VM_CELL_SIZE)
 #define VM_FSTACK_SIZE  (VM_FSTACK_COUNT * VM_FCELL_SIZE)
 
+#define VM_INPUT_BUFFER_NUM_BYTES (80U)
+
 /* Length and flags byte for dictionary word names
  *
  * Each word's name is prefixed by a single byte that packs both the name
@@ -125,7 +128,8 @@ typedef VM_FCELL_TYPE FCell;
     VM_ERROR_ITEM(FSTACK_UNDERFLOW, -7)                                        \
     VM_ERROR_ITEM(INVALID_MEMORY_ADDRESS, -8)                                  \
     VM_ERROR_ITEM(OUT_OF_MEMORY, -9)                                           \
-    VM_ERROR_ITEM(UNKNOWN, -10) // Must be last
+    VM_ERROR_ITEM(UNDEFINED_WORD, -10)                                         \
+    VM_ERROR_ITEM(UNKNOWN, -11) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -157,6 +161,8 @@ typedef struct
     Cell latest;
     /* Next free cell in memory. Compiled words will go here. */
     Cell here;
+    /* Current position in the instruction stream. */
+    Cell ip;
 
     /* Index of the current position in the parameter stack. */
     Cell psp;
@@ -172,6 +178,10 @@ typedef struct
     Cell fsp;
     /* Base of the floating point stack. */
     FCell fstack[VM_FSTACK_COUNT];
+
+    Byte input_buffer[VM_INPUT_BUFFER_NUM_BYTES];
+    size_t input_buffer_len;
+    size_t input_buffer_pos;
 
     /* The program's main memory.
      *
@@ -331,6 +341,31 @@ vm_rstack_pop(Vm *vm, Cell *address)
     return VM_ERROR_OK;
 }
 
+typedef struct
+{
+    enum
+    {
+        VM_NONE,
+        VM_SOME,
+    } is;
+    Cell data;
+} Vm_Maybe_Cell;
+
+#define SOME(maybe) ((maybe).is == VM_SOME)
+#define NONE(maybe) ((maybe).is == VM_NONE)
+
+WARN_UNUSED_RESULT static Vm_Error
+vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
+             Vm_Maybe_Cell *result)
+{
+    UNUSED(vm);
+    UNUSED(name_len);
+    UNUSED(name);
+    UNUSED(result);
+    TODO("vm_find_word");
+    return VM_ERROR_OK;
+}
+
 #define VM_BUILTIN_LIST                                                        \
     VM_BUILTIN_ITEM(drop, "drop", VM_DICT_FLAG_NONE)                           \
     VM_BUILTIN_ITEM(swap, "swap", VM_DICT_FLAG_NONE)                           \
@@ -351,14 +386,10 @@ typedef enum
 #define VM_BUILTIN_DEFINE(word)                                                \
     WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
 
-/* Helper macro for returning from a builtin handler. */
-#define VM_BUILTIN_NEXT() TODO("VM_BUILTIN_NEXT")
-
 VM_BUILTIN_DEFINE(drop)(Vm *vm)
 {
     Cell ignored_dropped_value = 0;
     TRY(vm_pstack_pop(vm, &ignored_dropped_value));
-    VM_BUILTIN_NEXT();
     return VM_ERROR_OK;
 }
 
@@ -370,7 +401,6 @@ VM_BUILTIN_DEFINE(swap)(Vm *vm)
     TRY(vm_pstack_pop(vm, &y));
     TRY(vm_pstack_push(vm, x));
     TRY(vm_pstack_push(vm, y));
-    VM_BUILTIN_NEXT();
     return VM_ERROR_OK;
 }
 
@@ -379,7 +409,6 @@ VM_BUILTIN_DEFINE(dup)(Vm *vm)
     Cell top = 0;
     TRY(vm_pstack_peek(vm, &top));
     TRY(vm_pstack_push(vm, top));
-    VM_BUILTIN_NEXT();
     return VM_ERROR_OK;
 }
 
@@ -467,6 +496,138 @@ vm_register_builtins(Vm *vm)
     return VM_ERROR_OK;
 }
 
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_parse_integer_literal(size_t str_len, const char str[str_len],
+                         Vm_Maybe_Cell *result)
+{
+    UNUSED(str_len);
+    UNUSED(str);
+    UNUSED(result);
+    TODO("vm_parse_digit_string");
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+static bool
+vm_is_whitespace(Byte byte)
+{
+    switch ((char)byte)
+    {
+    case ' ':  /* fallthrough */
+    case '\t': /* fallthrough */
+    case '\n': /* fallthrough */
+    case '\r':
+        return true;
+    default:
+        return false;
+    }
+}
+
+typedef struct
+{
+    /* Inclusive start index. */
+    size_t start;
+    /* Exclusive end index. */
+    size_t end;
+} Vm_Buffer_Range;
+
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_next_word(Vm *vm, Vm_Buffer_Range *out_word_range)
+{
+    // Skip leading whitespaces
+    while (vm->input_buffer_pos < vm->input_buffer_len &&
+           vm_is_whitespace(vm->input_buffer[vm->input_buffer_pos]))
+    {
+        vm->input_buffer_pos += 1;
+    }
+
+    out_word_range->start = vm->input_buffer_pos;
+
+    // Extract word
+    while (vm->input_buffer_pos < vm->input_buffer_len &&
+           !vm_is_whitespace(vm->input_buffer[vm->input_buffer_pos]))
+    {
+        vm->input_buffer_pos += 1;
+    }
+
+    out_word_range->end = vm->input_buffer_pos;
+
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_interpret(Vm *vm)
+{
+    vm->mode = VM_MODE_INTERPRET;
+
+    // TODO: Read input from source (e.g. from file, stdin)
+    const char source[] = "";
+    size_t source_len = VM_STR_LIT_LENGTH(source);
+
+    // FIXME: This just truncates the input
+    if (source_len >= VM_INPUT_BUFFER_NUM_BYTES)
+    {
+        source_len = VM_INPUT_BUFFER_NUM_BYTES;
+    }
+
+    memcpy(vm->input_buffer, source, source_len);
+    vm->input_buffer_len = source_len;
+
+    while (vm->input_buffer_pos < vm->input_buffer_len)
+    {
+        Vm_Buffer_Range word_range = {0};
+        TRY(vm_next_word(vm, &word_range));
+        const size_t word_len = word_range.end - word_range.start;
+
+        // No more words to process
+        if (word_len == 0)
+        {
+            break;
+        }
+
+        Vm_Maybe_Cell xt = {0};
+        TRY(vm_find_word(vm, word_len,
+                         (const char *)vm->input_buffer + word_range.start,
+                         &xt));
+        if (SOME(xt))
+        {
+            if (xt.data < VM_BUILTIN_HANDLER_COUNT)
+            {
+                Vm_Error err = vm_builtin_handlers[xt.data](vm);
+                if (err != VM_ERROR_OK)
+                {
+                    // TODO: Give user more context about this error
+                    return err;
+                }
+                continue;
+            }
+
+            TODO("execute colon definition");
+        }
+
+        Vm_Maybe_Cell parsed_integer = {0};
+        TRY(vm_parse_integer_literal(
+            word_len, (const char *)vm->input_buffer + word_range.start,
+            &parsed_integer));
+        if (SOME(parsed_integer))
+        {
+            TRY(vm_pstack_push(vm, parsed_integer.data));
+            continue;
+        }
+
+        // TODO: Handle other literals (e.g. floats, strings)
+
+        // TODO: Give user more context about this error
+        // NOTE: When an error occurs, should we go back to the prompt?
+        return VM_ERROR_UNDEFINED_WORD;
+    }
+
+    return VM_ERROR_OK;
+}
+
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
 #define VM_ERROR_ITEM(name, _) "VM_ERROR_" #name,
@@ -474,10 +635,10 @@ static const char *vm_error_names[] = {
 #undef VM_ERROR_ITEM
 };
 
-/* Returns the string representation of the given error code.
+/* Return the string representation of the given error code.
  *
- * If the provided error code is invalid, returns the string representation of
- * VM_ERROR_UNKNOWN instead.
+ * If the provided error code is invalid, returns the string representation
+ * of VM_ERROR_UNKNOWN instead.
  */
 static const char *
 vm_error_as_string(Vm_Error error)
@@ -493,7 +654,29 @@ vm_error_as_string(Vm_Error error)
 static void
 vm_report_error(Vm_Error error, const char *context_msg)
 {
-    fprintf(stderr, "%s: %s\n", vm_error_as_string(error), context_msg);
+    fprintf(stderr, "err (%s)", vm_error_as_string(error));
+    if (context_msg != NULL)
+    {
+        fprintf(stderr, " %s", context_msg);
+    }
+    fprintf(stderr, "\n");
+}
+
+static void
+vm_print_stack(Vm *vm)
+{
+    if (vm->psp > 0)
+    {
+        printf("<%lu>", vm->psp);
+        for (Cell i = 0; i < vm->psp; i++)
+        {
+            printf(" 0x%0*lX", (int)VM_CELL_SIZE, vm->pstack[i]);
+        }
+    }
+    else
+    {
+        printf("<0> (empty)");
+    }
 }
 
 int
@@ -519,8 +702,22 @@ main(void)
         return EXIT_FAILURE;
     }
 
+    err = vm_interpret(&vm);
+    if (err == VM_ERROR_OK)
+    {
+        vm_print_stack(&vm);
+        puts(" ok");
+    }
+    else
+    {
+        // TODO: Provide better error diagnostics
+        vm_print_stack(&vm);
+        puts(" err");
+        fprintf(stderr, "%s\n", vm_error_as_string(err));
+        return EXIT_FAILURE;
+    }
+
     // Ignore -Wunneeded-internal-declaration errors for now
-    UNUSED(vm_builtin_handlers);
     UNUSED(vm_rstack_pop);
     UNUSED(vm_rstack_push);
 
