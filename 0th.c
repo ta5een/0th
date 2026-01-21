@@ -21,8 +21,13 @@
     #define WARN_UNUSED_RESULT
 #endif
 
-#define UNUSED(var)        ((void)(var))
-#define UNIMPLEMENTED(msg) assert(0 && (msg))
+#define UNUSED(var) ((void)(var))
+#define TODO(msg)                                                              \
+    do                                                                         \
+    {                                                                          \
+        fprintf(stderr, "TODO: %s:%d %s\n", __FILE__, __LINE__, (msg));        \
+        abort();                                                               \
+    } while (0)
 
 #define REQUIRE(cond) if (UNLIKELY(!(cond)))
 #define TRY(expr)                                                              \
@@ -286,7 +291,7 @@ vm_rstack_pop(Vm *vm, Cell *address)
     WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
 
 /* Helper macro for returning from a builtin handler. */
-#define VM_BUILTIN_NEXT() UNIMPLEMENTED("VM_BUILTIN_NEXT")
+#define VM_BUILTIN_NEXT() TODO("VM_BUILTIN_NEXT")
 
 VM_BUILTIN_DEFINE(drop)(Vm *vm)
 {
