@@ -193,6 +193,19 @@ typedef struct
 
 WARN_UNUSED_RESULT
 static Vm_Error
+vm_read_cell(Vm *vm, Cell address, Cell *data)
+{
+    REQUIRE(address + VM_CELL_SIZE <= VM_MEMORY_SIZE)
+    {
+        return VM_ERROR_INVALID_MEMORY_ADDRESS;
+    }
+
+    memcpy(data, vm->memory + address, VM_CELL_SIZE);
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
 vm_write_byte(Vm *vm, Cell address, Byte data)
 {
     REQUIRE(address + VM_BYTE_SIZE <= VM_MEMORY_SIZE)
@@ -358,11 +371,48 @@ WARN_UNUSED_RESULT static Vm_Error
 vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
              Vm_Maybe_Cell *result)
 {
-    UNUSED(vm);
-    UNUSED(name_len);
-    UNUSED(name);
-    UNUSED(result);
-    TODO("vm_find_word");
+    // Is the provided name too long to be in the dictionary?
+    if (name_len > VM_DICT_NAME_LENGTH_MASK)
+    {
+        result->is = VM_NONE;
+        result->data = (Cell)0;
+        return VM_ERROR_OK;
+    }
+
+    Cell entry = vm->latest;
+    while (entry != 0)
+    {
+        Cell link;
+        TRY(vm_read_cell(vm, entry, &link));
+
+        Byte len_flags = vm->memory[entry + VM_CELL_SIZE];
+        Byte len = len_flags & VM_DICT_NAME_LENGTH_MASK;
+
+        if (len_flags & VM_DICT_FLAG_HIDDEN)
+        {
+            entry = link;
+            continue;
+        }
+
+        if (len == name_len)
+        {
+            Byte *entry_name = vm->memory + entry + VM_CELL_SIZE + VM_BYTE_SIZE;
+            if (memcmp(entry_name, name, len) == 0)
+            {
+                Cell xt_addr = entry + VM_CELL_SIZE + VM_BYTE_SIZE + len;
+                // Align to next cell boundary
+                xt_addr = (xt_addr + VM_CELL_SIZE - 1) & ~(VM_CELL_SIZE - 1);
+                TRY(vm_read_cell(vm, xt_addr, &result->data));
+                result->is = VM_SOME;
+                return VM_ERROR_OK;
+            }
+        }
+
+        entry = link;
+    }
+
+    result->is = VM_NONE;
+    result->data = (Cell)0;
     return VM_ERROR_OK;
 }
 
