@@ -231,8 +231,21 @@ vm_store_byte(Vm *vm, Byte data)
 
 WARN_UNUSED_RESULT
 static Vm_Error
+vm_align_here(Vm *vm)
+{
+    while (vm->here & (VM_CELL_SIZE - 1))
+    {
+        TRY(vm_store_byte(vm, 0x0));
+    }
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
 vm_store_cell(Vm *vm, Cell data)
 {
+    // Align vm->here to cell boundary if needed
+    TRY(vm_align_here(vm));
     TRY(vm_write_cell(vm, vm->here, data));
     vm->here += VM_CELL_SIZE;
     return VM_ERROR_OK;
