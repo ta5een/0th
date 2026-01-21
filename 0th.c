@@ -278,9 +278,16 @@ vm_rstack_pop(Vm *vm, Cell *address)
 }
 
 #define VM_BUILTIN_LIST                                                        \
-    VM_BUILTIN_ITEM(drop, VM_DICT_FLAG_NONE)                                   \
-    VM_BUILTIN_ITEM(swap, VM_DICT_FLAG_NONE)                                   \
-    VM_BUILTIN_ITEM(dup, VM_DICT_FLAG_NONE)
+    VM_BUILTIN_ITEM(drop, "drop", VM_DICT_FLAG_NONE)                           \
+    VM_BUILTIN_ITEM(swap, "swap", VM_DICT_FLAG_NONE)                           \
+    VM_BUILTIN_ITEM(dup, "dup", VM_DICT_FLAG_NONE)
+
+typedef enum
+{
+#define VM_BUILTIN_ITEM(c_name, _name, _flags) VM_BUILTIN_ID_##c_name,
+    VM_BUILTIN_LIST
+#undef VM_BUILTIN_ITEM
+} Vm_Builtin_Id;
 
 /* Helper macro for defining builtin handler functions.
  *
@@ -326,7 +333,7 @@ VM_BUILTIN_DEFINE(dup)(Vm *vm)
  *
  * Each builtin takes a pointer to the VM and returns an error code.
  */
-typedef Vm_Error (*Vm_Builtin_Handler)(Vm *);
+typedef Vm_Error (*Vm_Builtin_Handler)(Vm *vm);
 
 /* Dispatch table mapping builtin indices to handler functions.
  *
@@ -335,7 +342,7 @@ typedef Vm_Error (*Vm_Builtin_Handler)(Vm *);
  * this array. The order of handlers matches the order in VM_BUILTIN_LIST.
  */
 static const Vm_Builtin_Handler vm_builtin_handlers[] = {
-#define VM_BUILTIN_ITEM(name, _flags) vm_builtin_##name,
+#define VM_BUILTIN_ITEM(c_name, _name, _flags) vm_builtin_##c_name,
     VM_BUILTIN_LIST
 #undef VM_BUILTIN_ITEM
 };
@@ -428,14 +435,9 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_register_builtins(Vm *vm)
 {
-    size_t index = 0;
-
-#define VM_BUILTIN_ITEM(name, flags)                                           \
-    {                                                                          \
-        TRY(vm_add_builtin(vm, index, #name, VM_STR_LIT_LENGTH(#name),         \
-                           flags));                                            \
-        index += 1;                                                            \
-    }
+#define VM_BUILTIN_ITEM(c_name, name, flags)                                   \
+    TRY(vm_add_builtin(vm, VM_BUILTIN_ID_##c_name, name,                       \
+                       VM_STR_LIT_LENGTH(name), flags));
     VM_BUILTIN_LIST
 #undef VM_BUILTIN_ITEM
 
