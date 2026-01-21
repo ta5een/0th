@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -57,8 +58,10 @@
  */
 #define VM_BYTE_TYPE  unsigned char
 #define VM_BYTE_SIZE  (sizeof(VM_BYTE_TYPE))
+#define VM_BYTE_MAX   UCHAR_MAX
 #define VM_CELL_TYPE  uintptr_t
 #define VM_CELL_SIZE  (sizeof(VM_CELL_TYPE))
+#define VM_CELL_MAX   UINTPTR_MAX
 #define VM_FCELL_TYPE double
 #define VM_FCELL_SIZE (sizeof(VM_FCELL_TYPE))
 
@@ -129,7 +132,8 @@ typedef VM_FCELL_TYPE FCell;
     VM_ERROR_ITEM(INVALID_MEMORY_ADDRESS, -8)                                  \
     VM_ERROR_ITEM(OUT_OF_MEMORY, -9)                                           \
     VM_ERROR_ITEM(UNDEFINED_WORD, -10)                                         \
-    VM_ERROR_ITEM(UNKNOWN, -11) // Must be last
+    VM_ERROR_ITEM(RESULT_OUT_OF_RANGE, -11)                                    \
+    VM_ERROR_ITEM(UNKNOWN, -12) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -546,15 +550,171 @@ vm_register_builtins(Vm *vm)
     return VM_ERROR_OK;
 }
 
+/* clang-format off */
+#define xx ((unsigned char)-1)
+/* Lookup table mapping ASCII characters to digit values (0-35).
+ * Invalid characters map to 0xFF (255), which exceeds any valid base.
+ */
+static const unsigned char char_to_digit[] = {
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+     0,  1,  2,  3,  4,  5,  6,  7,
+     8,  9, xx, xx, xx, xx, xx, xx,
+    xx, 10, 11, 12, 13, 14, 15, 16,
+    17, 18, 19, 20, 21, 22, 23, 24,
+    25, 26, 27, 28, 29, 30, 31, 32,
+    33, 34, 35, xx, xx, xx, xx, xx,
+    xx, 10, 11, 12, 13, 14, 15, 16,
+    17, 18, 19, 20, 21, 22, 23, 24,
+    25, 26, 27, 28, 29, 30, 31, 32,
+    33, 34, 35, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+    xx, xx, xx, xx, xx, xx, xx, xx,
+};
+#undef xx
+/* clang-format on */
+
+/* Parse str as an unsigned integer in the given base (2-36).
+ *
+ * Returns VM_ERROR_RESULT_OUT_OF_RANGE if the value would overflow a Cell.
+ *
+ * Derived from musl libc's intscan.c (MIT license):
+ * https://github.com/kraj/musl/blob/ff441c9ddfefbb94e5881ddd5112b24a944dc36c/src/internal/intscan.c#L26
+ */
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_parse_digit_string(size_t str_len, const char str[str_len], Cell base,
+                      Vm_Maybe_Cell *result)
+{
+    assert(2 <= base && base <= 36 && "base out of range");
+
+    result->is = VM_NONE;
+    result->data = 0;
+
+    if (str_len == 0)
+    {
+        return VM_ERROR_OK;
+    }
+
+    for (size_t i = 0; i < str_len; ++i)
+    {
+        unsigned char digit_char = (unsigned char)str[i];
+        unsigned char digit_value = char_to_digit[digit_char];
+
+        if (digit_value >= base)
+        {
+            return VM_ERROR_OK;
+        }
+
+        if (result->data > (VM_CELL_MAX - digit_value) / base)
+        {
+            return VM_ERROR_RESULT_OUT_OF_RANGE;
+        }
+
+        result->data = result->data * base + digit_value;
+    }
+
+    result->is = VM_SOME;
+    return VM_ERROR_OK;
+}
+
+/* Parse an integer literal with optional sign and base prefix.
+ *
+ * An optional "+" or "-" sign may precede the number. The base (2-36) can be
+ * specified with the "N#" prefix, where N is the base in decimal. Without a
+ * prefix, base 10 is assumed. Digits a-z and A-Z represent values 10-35.
+ *
+ * Examples: "42", "-42", "16#ff", "-2#1010", "+8#777"
+ *
+ * Returns VM_ERROR_RESULT_OUT_OF_RANGE if the value would overflow a Cell.
+ */
 WARN_UNUSED_RESULT
 static Vm_Error
 vm_parse_integer_literal(size_t str_len, const char str[str_len],
                          Vm_Maybe_Cell *result)
 {
-    UNUSED(str_len);
-    UNUSED(str);
-    UNUSED(result);
-    TODO("vm_parse_digit_string");
+    result->is = VM_NONE;
+    result->data = 0;
+
+    if (str_len == 0)
+    {
+        return VM_ERROR_OK;
+    }
+
+    bool negative = false;
+    if (str[0] == '-' || str[0] == '+')
+    {
+        negative = str[0] == '-';
+        str += 1;
+        str_len -= 1;
+    }
+
+    enum
+    {
+        VM_INTEGER_DECIMAL = 10
+    };
+    Cell base = VM_INTEGER_DECIMAL;
+
+    size_t number_start = 0;
+    const char *hash = memchr(str, '#', str_len);
+    if (hash != NULL)
+    {
+        size_t hash_index = (size_t)(hash - str);
+        number_start = hash_index + 1;
+
+        // The base prefix must be one or two digits (e.g., 2# or 16#)
+        REQUIRE(hash_index == 1 || hash_index == 2)
+        {
+            return VM_ERROR_OK;
+        }
+
+        // The literal must have digits after the base prefix
+        REQUIRE(number_start < str_len)
+        {
+            return VM_ERROR_OK;
+        }
+
+        Vm_Maybe_Cell parsed_base = {0};
+        TRY(vm_parse_digit_string(hash_index, str, 10, &parsed_base));
+        if (NONE(parsed_base))
+        {
+            return VM_ERROR_OK;
+        }
+
+        REQUIRE(2 <= parsed_base.data && parsed_base.data <= 36)
+        {
+            return VM_ERROR_OK;
+        }
+
+        base = parsed_base.data;
+    }
+
+    TRY(vm_parse_digit_string(str_len - number_start, str + number_start, base,
+                              result));
+
+    if (SOME(*result) && negative)
+    {
+        result->data = -result->data;
+    }
+
     return VM_ERROR_OK;
 }
 
