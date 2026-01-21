@@ -421,9 +421,15 @@ vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
 }
 
 #define VM_BUILTIN_LIST                                                        \
+    VM_BUILTIN_ITEM(enter, "enter", VM_DICT_FLAG_NONE)                         \
+    VM_BUILTIN_ITEM(exit, "exit", VM_DICT_FLAG_NONE)                           \
     VM_BUILTIN_ITEM(drop, "drop", VM_DICT_FLAG_NONE)                           \
     VM_BUILTIN_ITEM(swap, "swap", VM_DICT_FLAG_NONE)                           \
-    VM_BUILTIN_ITEM(dup, "dup", VM_DICT_FLAG_NONE)
+    VM_BUILTIN_ITEM(dup, "dup", VM_DICT_FLAG_NONE)                             \
+    VM_BUILTIN_ITEM(literal, "literal", VM_DICT_FLAG_NONE)                     \
+    VM_BUILTIN_ITEM(plus, "+", VM_DICT_FLAG_NONE)                              \
+    VM_BUILTIN_ITEM(find, "find", VM_DICT_FLAG_NONE)                           \
+    VM_BUILTIN_ITEM(quit, "quit", VM_DICT_FLAG_NONE)
 
 typedef enum
 {
@@ -440,6 +446,34 @@ typedef enum
 #define VM_BUILTIN_DEFINE(word)                                                \
     WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
 
+/* ( -- ) ( R: -- addr )
+ *
+ * Push the current instruction pointer addr onto the return stack.
+ */
+VM_BUILTIN_DEFINE(enter)(Vm *vm)
+{
+    // FIXME: hard-coded builtin index
+    assert(vm->ip > VM_BUILTIN_ID_quit && "cannot ENTER builtin word");
+    TRY(vm_rstack_push(vm, vm->ip));
+    return VM_ERROR_OK;
+}
+
+/* ( -- ) ( R: addr -- )
+ *
+ * Pop addr from the return stack and restore it as the instruction pointer.
+ */
+VM_BUILTIN_DEFINE(exit)(Vm *vm)
+{
+    Cell new_ip = 0;
+    TRY(vm_rstack_pop(vm, &new_ip));
+    vm->ip = new_ip;
+    return VM_ERROR_OK;
+}
+
+/* ( x -- )
+ *
+ * Remove x from the stack.
+ */
 VM_BUILTIN_DEFINE(drop)(Vm *vm)
 {
     Cell ignored_dropped_value = 0;
@@ -447,6 +481,10 @@ VM_BUILTIN_DEFINE(drop)(Vm *vm)
     return VM_ERROR_OK;
 }
 
+/* ( x1 x2 -- x2 x1 )
+ *
+ * Exchange the top two stack items x1 and x2.
+ */
 VM_BUILTIN_DEFINE(swap)(Vm *vm)
 {
     Cell x = 0;
@@ -458,11 +496,96 @@ VM_BUILTIN_DEFINE(swap)(Vm *vm)
     return VM_ERROR_OK;
 }
 
+/* ( x -- x x )
+ *
+ * Duplicate x.
+ */
 VM_BUILTIN_DEFINE(dup)(Vm *vm)
 {
     Cell top = 0;
     TRY(vm_pstack_peek(vm, &top));
     TRY(vm_pstack_push(vm, top));
+    return VM_ERROR_OK;
+}
+
+/* ( -- x )
+ *
+ * Push the value x from the next cell in the instruction stream.
+ */
+VM_BUILTIN_DEFINE(literal)(Vm *vm)
+{
+    Cell value = 0;
+    memcpy(&value, vm->memory + vm->ip, VM_CELL_SIZE);
+    vm->ip += VM_CELL_SIZE;
+    TRY(vm_pstack_push(vm, value));
+    return VM_ERROR_OK;
+}
+
+/* ( n1|u1 n2|u2 -- n3|u3 )
+ *
+ * Add n2|u2 to n1|u1, giving the sum n3|u3.
+ */
+VM_BUILTIN_DEFINE(plus)(Vm *vm)
+{
+    Cell x = 0;
+    Cell y = 0;
+    TRY(vm_pstack_pop(vm, &x));
+    TRY(vm_pstack_pop(vm, &y));
+    TRY(vm_pstack_push(vm, x + y));
+    return VM_ERROR_OK;
+}
+
+/* ( c-addr u -- c-addr u 0 | xt 1 | xt -1 )
+ *
+ * Find the definition named by the string at c-addr with length u. Returns
+ * c-addr, u, and zero if the definition is not found. Returns xt and one (1)
+ * if the word is immediate, or xt and minus-one (-1) otherwise.
+ *
+ * NOTE: c-addr is an offset into VM memory, not a native pointer.
+ * NOTE: Dictionary entries are case-sensitive.
+ * TODO: Consider refactoring implementation to match proposed FIND-NAME and
+ *       FIND-NAME-IN behaviors.
+ */
+VM_BUILTIN_DEFINE(find)(Vm *vm)
+{
+    Cell name_len = 0;
+    Cell name_addr = 0;
+    TRY(vm_pstack_pop(vm, &name_len));
+    TRY(vm_pstack_pop(vm, &name_addr));
+
+    REQUIRE(name_addr + name_len <= VM_MEMORY_SIZE)
+    {
+        return VM_ERROR_INVALID_MEMORY_ADDRESS;
+    }
+
+    char *str = (char *)(vm->memory + name_addr);
+    Vm_Maybe_Cell xt = {0};
+    TRY(vm_find_word(vm, name_len, str, &xt));
+
+    if (NONE(xt))
+    {
+        TRY(vm_pstack_push(vm, name_len));
+        TRY(vm_pstack_push(vm, name_addr));
+        TRY(vm_pstack_push(vm, 0));
+        return VM_ERROR_OK;
+    }
+
+    TRY(vm_pstack_push(vm, xt.data));
+    // TODO: Push 1 if definition is immediate
+    TRY(vm_pstack_push(vm, (Cell)-1));
+
+    return VM_ERROR_OK;
+}
+
+/* ( -- ) ( R: i * x -- )
+ *
+ * Clear the return stack and enter the interpretation state. Repeatedly
+ * accept and interpret lines of input.
+ */
+VM_BUILTIN_DEFINE(quit)(Vm *vm)
+{
+    UNUSED(vm);
+    TODO("quit");
     return VM_ERROR_OK;
 }
 
@@ -926,10 +1049,6 @@ main(void)
         fprintf(stderr, "%s\n", vm_error_as_string(err));
         return EXIT_FAILURE;
     }
-
-    // Ignore -Wunneeded-internal-declaration errors for now
-    UNUSED(vm_rstack_pop);
-    UNUSED(vm_rstack_push);
 
     return EXIT_SUCCESS;
 }
