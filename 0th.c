@@ -890,35 +890,49 @@ vm_next_word(Vm *vm, Vm_Buffer_Range *out_word_range)
     return VM_ERROR_OK;
 }
 
+static char *
+vm_read_input(Vm *vm, size_t buffer_offset)
+{
+    assert(buffer_offset < sizeof(vm->input_buffer) && "invalid offset");
+    size_t buffer_size = sizeof(vm->input_buffer) - buffer_offset;
+    if (buffer_size > INT_MAX)
+    {
+        buffer_size = INT_MAX;
+    }
+    return fgets((char *)&vm->input_buffer[buffer_offset], (int)buffer_size,
+                 stdin);
+}
+
+/* Interpret words from the input buffer.
+ *
+ * If a word is split at the buffer boundary and eof is false, preserves the
+ * partial word and sets out_buffer_offset for the next read.
+ */
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_interpret(Vm *vm)
+vm_interpret(Vm *vm, bool eof, size_t *out_buffer_offset)
 {
-    vm->mode = VM_MODE_INTERPRET;
-
-    // TODO: Read input from source (e.g. from file, stdin)
-    const char source[] = "";
-    size_t source_len = VM_STR_LIT_LENGTH(source);
-
-    // FIXME: This just truncates the input
-    if (source_len >= VM_INPUT_BUFFER_NUM_BYTES)
-    {
-        source_len = VM_INPUT_BUFFER_NUM_BYTES;
-    }
-
-    memcpy(vm->input_buffer, source, source_len);
-    vm->input_buffer_len = source_len;
-
     while (vm->input_buffer_pos < vm->input_buffer_len)
     {
         Vm_Buffer_Range word_range = {0};
         TRY(vm_next_word(vm, &word_range));
         const size_t word_len = word_range.end - word_range.start;
 
+        // End of buffer, but input still remains
+        if (!eof && word_range.end == VM_INPUT_BUFFER_NUM_BYTES - 1)
+        {
+            memmove(vm->input_buffer, vm->input_buffer + word_range.start,
+                    word_len);
+            vm->input_buffer_pos = word_len;
+            vm->input_buffer_len = word_len;
+            *out_buffer_offset = vm->input_buffer_pos;
+            return VM_ERROR_OK;
+        }
+
         // No more words to process
         if (word_len == 0)
         {
-            break;
+            return VM_ERROR_OK;
         }
 
         Vm_Maybe_Cell xt = {0};
@@ -956,6 +970,30 @@ vm_interpret(Vm *vm)
         // TODO: Give user more context about this error
         // NOTE: When an error occurs, should we go back to the prompt?
         return VM_ERROR_UNDEFINED_WORD;
+    }
+
+    return VM_ERROR_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_start(Vm *vm)
+{
+    vm->mode = VM_MODE_INTERPRET;
+
+    size_t buffer_offset = 0;
+    while (vm_read_input(vm, buffer_offset) != NULL)
+    {
+        vm->input_buffer_pos = 0;
+        // fgets always null-terminates, so strcspn is safe
+        vm->input_buffer_len = strcspn((char *)vm->input_buffer, "\n");
+        TRY(vm_interpret(vm, feof(stdin), &buffer_offset));
+    }
+
+    if (ferror(stdin))
+    {
+        perror("Failed to read input");
+        return VM_ERROR_ABORT;
     }
 
     return VM_ERROR_OK;
@@ -1035,7 +1073,7 @@ main(void)
         return EXIT_FAILURE;
     }
 
-    err = vm_interpret(&vm);
+    err = vm_start(&vm);
     if (err == VM_ERROR_OK)
     {
         vm_print_stack(&vm);
