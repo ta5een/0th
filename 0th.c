@@ -120,20 +120,20 @@ typedef VM_FCELL_TYPE FCell;
  *
  * New errors may be added, but VM_ERROR_UNKNOWN must always be the last entry.
  */
-#define VM_ERROR_LIST                                                          \
-    VM_ERROR_ITEM(OK, 0)                                                       \
-    VM_ERROR_ITEM(ABORT, -1)                                                   \
-    VM_ERROR_ITEM(PSTACK_OVERFLOW, -2)                                         \
-    VM_ERROR_ITEM(PSTACK_UNDERFLOW, -3)                                        \
-    VM_ERROR_ITEM(RSTACK_OVERFLOW, -4)                                         \
-    VM_ERROR_ITEM(RSTACK_UNDERFLOW, -5)                                        \
-    VM_ERROR_ITEM(FSTACK_OVERFLOW, -6)                                         \
-    VM_ERROR_ITEM(FSTACK_UNDERFLOW, -7)                                        \
-    VM_ERROR_ITEM(INVALID_MEMORY_ADDRESS, -8)                                  \
-    VM_ERROR_ITEM(OUT_OF_MEMORY, -9)                                           \
-    VM_ERROR_ITEM(UNDEFINED_WORD, -10)                                         \
-    VM_ERROR_ITEM(RESULT_OUT_OF_RANGE, -11)                                    \
-    VM_ERROR_ITEM(UNKNOWN, -12) // Must be last
+#define VM_FOR_EACH_ERROR(DO)                                                  \
+    DO(OK, 0)                                                                  \
+    DO(ABORT, -1)                                                              \
+    DO(PSTACK_OVERFLOW, -2)                                                    \
+    DO(PSTACK_UNDERFLOW, -3)                                                   \
+    DO(RSTACK_OVERFLOW, -4)                                                    \
+    DO(RSTACK_UNDERFLOW, -5)                                                   \
+    DO(FSTACK_OVERFLOW, -6)                                                    \
+    DO(FSTACK_UNDERFLOW, -7)                                                   \
+    DO(INVALID_MEMORY_ADDRESS, -8)                                             \
+    DO(OUT_OF_MEMORY, -9)                                                      \
+    DO(UNDEFINED_WORD, -10)                                                    \
+    DO(RESULT_OUT_OF_RANGE, -11)                                               \
+    DO(UNKNOWN, -12) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -143,9 +143,9 @@ typedef VM_FCELL_TYPE FCell;
  */
 typedef enum
 {
-#define VM_ERROR_ITEM(name, value) VM_ERROR_##name = (value),
-    VM_ERROR_LIST
-#undef VM_ERROR_ITEM
+#define VM_EMIT_ERROR_ENUM(name, value) VM_ERROR_##name = (value),
+    VM_FOR_EACH_ERROR(VM_EMIT_ERROR_ENUM)
+#undef VM_EMIT_ERROR_ENUM
 } Vm_Error;
 
 /* Controls how the interpreter processes words. */
@@ -420,22 +420,22 @@ vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
     return VM_ERROR_OK;
 }
 
-#define VM_BUILTIN_LIST                                                        \
-    VM_BUILTIN_ITEM(enter, "enter", VM_DICT_FLAG_NONE)                         \
-    VM_BUILTIN_ITEM(exit, "exit", VM_DICT_FLAG_NONE)                           \
-    VM_BUILTIN_ITEM(drop, "drop", VM_DICT_FLAG_NONE)                           \
-    VM_BUILTIN_ITEM(swap, "swap", VM_DICT_FLAG_NONE)                           \
-    VM_BUILTIN_ITEM(dup, "dup", VM_DICT_FLAG_NONE)                             \
-    VM_BUILTIN_ITEM(literal, "literal", VM_DICT_FLAG_NONE)                     \
-    VM_BUILTIN_ITEM(plus, "+", VM_DICT_FLAG_NONE)                              \
-    VM_BUILTIN_ITEM(find, "find", VM_DICT_FLAG_NONE)                           \
-    VM_BUILTIN_ITEM(quit, "quit", VM_DICT_FLAG_NONE)
+#define VM_FOR_EACH_BUILTIN(DO)                                                \
+    DO(enter, "enter", VM_DICT_FLAG_NONE)                                      \
+    DO(exit, "exit", VM_DICT_FLAG_NONE)                                        \
+    DO(drop, "drop", VM_DICT_FLAG_NONE)                                        \
+    DO(swap, "swap", VM_DICT_FLAG_NONE)                                        \
+    DO(dup, "dup", VM_DICT_FLAG_NONE)                                          \
+    DO(literal, "literal", VM_DICT_FLAG_NONE)                                  \
+    DO(plus, "+", VM_DICT_FLAG_NONE)                                           \
+    DO(find, "find", VM_DICT_FLAG_NONE)                                        \
+    DO(quit, "quit", VM_DICT_FLAG_NONE)
 
 typedef enum
 {
-#define VM_BUILTIN_ITEM(c_name, _name, _flags) VM_BUILTIN_ID_##c_name,
-    VM_BUILTIN_LIST
-#undef VM_BUILTIN_ITEM
+#define VM_EMIT_BUILTIN_ID(c_name, _name, _flags) VM_BUILTIN_ID_##c_name,
+    VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_ID)
+#undef VM_EMIT_BUILTIN_ID
 } Vm_Builtin_Id;
 
 /* Helper macro for defining builtin handler functions.
@@ -602,9 +602,9 @@ typedef Vm_Error (*Vm_Builtin_Handler)(Vm *vm);
  * this array. The order of handlers matches the order in VM_BUILTIN_LIST.
  */
 static const Vm_Builtin_Handler vm_builtin_handlers[] = {
-#define VM_BUILTIN_ITEM(c_name, _name, _flags) vm_builtin_##c_name,
-    VM_BUILTIN_LIST
-#undef VM_BUILTIN_ITEM
+#define VM_EMIT_BUILTIN_FN(c_name, _name, _flags) vm_builtin_##c_name,
+    VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_FN)
+#undef VM_EMIT_BUILTIN_FN
 };
 
 #define VM_BUILTIN_HANDLER_COUNT                                               \
@@ -664,11 +664,11 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_register_builtins(Vm *vm)
 {
-#define VM_BUILTIN_ITEM(c_name, name, flags)                                   \
+#define VM_REGISTER_BUILTIN(c_name, name, flags)                               \
     TRY(vm_add_builtin(vm, VM_BUILTIN_ID_##c_name, name,                       \
                        VM_STR_LIT_LENGTH(name), flags));
-    VM_BUILTIN_LIST
-#undef VM_BUILTIN_ITEM
+    VM_FOR_EACH_BUILTIN(VM_REGISTER_BUILTIN)
+#undef VM_REGISTER_BUILTIN
 
     return VM_ERROR_OK;
 }
@@ -963,9 +963,9 @@ vm_interpret(Vm *vm)
 
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
-#define VM_ERROR_ITEM(name, _) "VM_ERROR_" #name,
-    VM_ERROR_LIST
-#undef VM_ERROR_ITEM
+#define VM_EMIT_ERROR_STR(name, _) "VM_ERROR_" #name,
+    VM_FOR_EACH_ERROR(VM_EMIT_ERROR_STR)
+#undef VM_EMIT_ERROR_STR
 };
 
 /* Return the string representation of the given error code.
