@@ -97,6 +97,67 @@ Forth offers an elegant alternative:
    - Applications, libraries, utilities
    - Fully self-contained system running on bare-metal
 
+## Bootstrap Verification
+
+The bootstrap process requires verification to prove the 0th compiler is
+self-consistent:
+
+1. **C VM compiles 0th compiler** → produces RISC-V binary A
+2. **Binary A compiles 0th compiler** → produces RISC-V binary B
+3. **Verify A == B** → proves the compiler correctly compiles itself
+
+If A and B are identical, the compiler is self-consistent and the C VM can be
+discarded. Binary A (or B) becomes the trusted bootstrap artifact.
+
+## I/O Abstraction
+
+The 0th compiler uses abstract I/O words without knowing their implementation:
+
+| Word[^1] | C VM backend | Bare-metal backend    |
+|----------|--------------|-----------------------|
+| `OPEN`   | `fopen()`    | semihosting SYS_OPEN  |
+| `READ`   | `fread()`    | semihosting SYS_READ  |
+| `WRITE`  | `fwrite()`   | semihosting SYS_WRITE |
+| `CLOSE`  | `fclose()`   | semihosting SYS_CLOSE |
+
+[^1]: The names of these words are subject to change.
+
+This separation means:
+
+- The compiler source is portable across environments
+- Same compiler logic produces identical output regardless of host
+- Only the I/O primitives need platform-specific implementations
+
+## Semihosting
+
+Semihosting bridges the gap between hosted development and bare-metal
+execution. It allows bare-metal code running in QEMU to make calls that the
+emulator intercepts and forwards to the host OS, providing file I/O and console
+access without an operating system.
+
+This enables the bootstrap verification step: binary A is a bare-metal RISC-V
+executable, but when run under QEMU with semihosting, it can still read source
+files and write output binaries via the host filesystem.
+
+## Path to Real Hardware
+
+After bootstrap verification, the system transitions from semihosted QEMU to
+fully standalone hardware through iterative extension:
+
+1. **Add UART driver** — Serial console I/O that works on real hardware
+2. **Add storage driver** — SPI flash or SD card for persistent storage
+3. **Remove semihosting** — Replace semihosting calls with hardware drivers
+
+Each step uses the previous compiler to build the next. The chain of trust
+extends from the original verified bootstrap.
+
+On real hardware, traditional file I/O may not be needed at all:
+
+- Source stored in flash, interpreted directly
+- Forth "blocks" (1KB chunks) instead of files
+- Interactive development over serial console
+- Compile directly to flash
+
 ## Why a VM for Stage 0?
 
 The Stage 0 implementation is a VM rather than a compiler. This is a deliberate
