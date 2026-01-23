@@ -373,7 +373,8 @@ typedef struct
 #define SOME(maybe) ((maybe).is == VM_SOME)
 #define NONE(maybe) ((maybe).is == VM_NONE)
 
-WARN_UNUSED_RESULT static Vm_Error
+WARN_UNUSED_RESULT
+static Vm_Error
 vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
              Vm_Maybe_Cell *result)
 {
@@ -601,7 +602,7 @@ typedef Vm_Error (*Vm_Builtin_Handler)(Vm *vm);
  *
  * When the VM encounters a codeword in the range [0, VM_BUILTIN_HANDLER_COUNT),
  * it treats it as a builtin primitive and calls the handler at that index in
- * this array. The order of handlers matches the order in VM_BUILTIN_LIST.
+ * this array. The order of handlers matches the order in VM_FOR_EACH_BUILTIN.
  */
 static const Vm_Builtin_Handler vm_builtin_handlers[] = {
 #define VM_EMIT_BUILTIN_FN(c_name, _name, _flags) vm_builtin_##c_name,
