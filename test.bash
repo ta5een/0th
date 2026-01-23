@@ -52,8 +52,12 @@ test_case "addition hex" "16#10 16#20 +" "0x0*30"
 test_case "leading zeros in base" "08#7" "0x0*7"
 test_case "base 36" "36#z" "0x0*23"  # z = 35 = 0x23
 
-# Undefined word
+# Error handling
 test_case "undefined word" "notaword" "VM_ERROR_UNDEFINED_WORD"
+test_case "word too long" "$(printf 'a%.0s' {1..81})" "VM_ERROR_WORD_TOO_LONG"
+test_case "invalid integer digits" "2#10ab" "VM_ERROR_UNDEFINED_WORD"
+test_case "invalid integer base 1" "1#1010" "VM_ERROR_UNDEFINED_WORD"
+test_case "invalid integer base 37" "37#z0z0" "VM_ERROR_UNDEFINED_WORD"
 
 # Summary
 echo ""
