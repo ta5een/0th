@@ -567,8 +567,8 @@ VM_BUILTIN_DEFINE(find)(Vm *vm)
 
     if (NONE(xt))
     {
-        TRY(vm_pstack_push(vm, name_len));
         TRY(vm_pstack_push(vm, name_addr));
+        TRY(vm_pstack_push(vm, name_len));
         TRY(vm_pstack_push(vm, 0));
         return VM_ERROR_OK;
     }
