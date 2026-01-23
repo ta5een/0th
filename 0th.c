@@ -95,7 +95,8 @@ typedef VM_FCELL_TYPE FCell;
 #define VM_RSTACK_SIZE  (VM_RSTACK_COUNT * VM_CELL_SIZE)
 #define VM_FSTACK_SIZE  (VM_FSTACK_COUNT * VM_FCELL_SIZE)
 
-#define VM_INPUT_BUFFER_NUM_BYTES (80U)
+/* Extra byte for null terminator. */
+#define VM_INPUT_BUFFER_NUM_BYTES (80U + 1U)
 
 /* Length and flags byte for dictionary word names
  *
@@ -133,7 +134,8 @@ typedef VM_FCELL_TYPE FCell;
     DO(OUT_OF_MEMORY, -9)                                                      \
     DO(UNDEFINED_WORD, -10)                                                    \
     DO(RESULT_OUT_OF_RANGE, -11)                                               \
-    DO(UNKNOWN, -12) // Must be last
+    DO(WORD_TOO_LONG, -12)                                                     \
+    DO(UNKNOWN, -13) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -921,6 +923,12 @@ vm_interpret(Vm *vm, bool eof, size_t *out_buffer_offset)
         // End of buffer, but input still remains
         if (!eof && word_range.end == VM_INPUT_BUFFER_NUM_BYTES - 1)
         {
+            // Word spans the entire buffer and is too long to process.
+            if (word_range.start == 0)
+            {
+                return VM_ERROR_WORD_TOO_LONG;
+            }
+
             memmove(vm->input_buffer, vm->input_buffer + word_range.start,
                     word_len);
             vm->input_buffer_pos = word_len;
