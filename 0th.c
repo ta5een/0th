@@ -61,10 +61,12 @@ typedef uintptr_t Cell;
 typedef double FCell;
 #endif
 
+/* Canonical boolean values. */
 #define VM_TRUE  ((Cell)(-1))
 #define VM_FALSE ((Cell)0)
 
-#define VM_ADDR_ALIGNED(addr) (((Cell)(addr) & (sizeof(Cell) - 1)) == 0)
+/* Check if an address is cell-aligned. */
+#define VM_CELL_ALIGNED(addr) (((Cell)(addr) & (sizeof(Cell) - 1)) == 0)
 
 /* Memory layout and stack sizes for the interpreter.
  *
@@ -195,7 +197,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_align_here(void)
 {
-    while ((Cell)here & (sizeof(Cell) - 1))
+    while (!VM_CELL_ALIGNED(here))
     {
         TRY(vm_store_byte(0x0));
     }
@@ -422,7 +424,7 @@ VM_BUILTIN_DEFINE(store_cell)(void)
     Cell addr = 0;
     TRY(vm_pstack_pop(&addr));
     TRY(vm_pstack_pop(&data));
-    assert(VM_ADDR_ALIGNED(addr) && "addr not cell-aligned");
+    assert(VM_CELL_ALIGNED(addr) && "addr not cell-aligned");
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     *((Cell *)addr) = data;
     return VM_OK;
@@ -524,7 +526,7 @@ VM_BUILTIN_DEFINE(execute)(void)
 
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     Cell *validated_xt = (Cell *)xt;
-    REQUIRE(VM_ADDR_ALIGNED(validated_xt) && &memory.cells[0] <= validated_xt &&
+    REQUIRE(VM_CELL_ALIGNED(validated_xt) && &memory.cells[0] <= validated_xt &&
             validated_xt < &memory.cells[VM_MEMORY_SIZE / sizeof(Cell)])
     {
         return VM_ERROR_INVALID_MEMORY_ADDRESS;
