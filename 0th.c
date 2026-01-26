@@ -36,7 +36,7 @@
     do                                                                         \
     {                                                                          \
         Vm_Error err = (expr);                                                 \
-        if (err != VM_ERROR_OK)                                                \
+        if (err != VM_OK)                                                      \
         {                                                                      \
             return err;                                                        \
         }                                                                      \
@@ -123,29 +123,27 @@ typedef VM_FCELL_TYPE FCell;
 #define VM_FOR_EACH_ERROR(DO)                                                  \
     DO(OK, 0)                                                                  \
     DO(BYE, -1)                                                                \
-    DO(ABORT, -2)                                                              \
-    DO(PSTACK_OVERFLOW, -3)                                                    \
-    DO(PSTACK_UNDERFLOW, -4)                                                   \
-    DO(RSTACK_OVERFLOW, -5)                                                    \
-    DO(RSTACK_UNDERFLOW, -6)                                                   \
-    DO(FSTACK_OVERFLOW, -7)                                                    \
-    DO(FSTACK_UNDERFLOW, -8)                                                   \
-    DO(INVALID_MEMORY_ADDRESS, -9)                                             \
-    DO(OUT_OF_MEMORY, -10)                                                     \
-    DO(UNDEFINED_WORD, -11)                                                    \
-    DO(RESULT_OUT_OF_RANGE, -12)                                               \
-    DO(WORD_TOO_LONG, -13)                                                     \
-    DO(UNKNOWN, -14) // Must be last
+    DO(ERROR_ABORT, -2)                                                        \
+    DO(ERROR_PSTACK_OVERFLOW, -3)                                              \
+    DO(ERROR_PSTACK_UNDERFLOW, -4)                                             \
+    DO(ERROR_RSTACK_OVERFLOW, -5)                                              \
+    DO(ERROR_RSTACK_UNDERFLOW, -6)                                             \
+    DO(ERROR_FSTACK_OVERFLOW, -7)                                              \
+    DO(ERROR_FSTACK_UNDERFLOW, -8)                                             \
+    DO(ERROR_INVALID_MEMORY_ADDRESS, -9)                                       \
+    DO(ERROR_OUT_OF_MEMORY, -10)                                               \
+    DO(ERROR_UNDEFINED_WORD, -11)                                              \
+    DO(ERROR_RESULT_OUT_OF_RANGE, -12)                                         \
+    DO(ERROR_WORD_TOO_LONG, -13)                                               \
+    DO(ERROR_UNKNOWN, -14) // Must be last
 
-/* A fixed set of return values for all interpreter operations, indicating
- * success or failure.
+/* Return values for interpreter operations.
  *
- * VM_ERROR_OK indicates success, while all other values represent specific
- * failure conditions.
+ * VM_OK means success, VM_BYE means clean exit, VM_ERROR_* means failure.
  */
 typedef enum
 {
-#define VM_EMIT_ERROR_ENUM(name, value) VM_ERROR_##name = (value),
+#define VM_EMIT_ERROR_ENUM(name, value) VM_##name = (value),
     VM_FOR_EACH_ERROR(VM_EMIT_ERROR_ENUM)
 #undef VM_EMIT_ERROR_ENUM
 } Vm_Error;
@@ -196,7 +194,7 @@ vm_store_byte(Byte data)
 {
     *here = data;
     here += 1;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -207,7 +205,7 @@ vm_align_here(void)
     {
         TRY(vm_store_byte(0x0));
     }
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -217,7 +215,7 @@ vm_store_cell(Cell data)
     TRY(vm_align_here());
     memcpy(here, &data, VM_CELL_SIZE);
     here += VM_CELL_SIZE;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -226,7 +224,7 @@ vm_store_data(size_t len, const void *data)
 {
     memcpy(here, data, len);
     here += len;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -240,7 +238,7 @@ vm_pstack_push(Cell data)
 
     *psp = data;
     psp += 1;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -254,7 +252,7 @@ vm_pstack_pop(Cell *data)
 
     psp -= 1;
     *data = *psp;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -268,7 +266,7 @@ vm_rstack_push(Cell address)
 
     *rsp = address;
     rsp += 1;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -282,7 +280,7 @@ vm_rstack_pop(Cell *address)
 
     rsp -= 1;
     *address = *rsp;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 typedef struct
@@ -312,7 +310,7 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
         {
             result->is = VM_SOME;
             result->data = (Cell)&entry[VM_CELL_SIZE * 2];
-            return VM_ERROR_OK;
+            return VM_OK;
         }
 
         // Follow link to previous entry
@@ -325,7 +323,7 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
     // Not found
     result->is = VM_NONE;
     result->data = VM_FALSE;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 #define VM_FOR_EACH_BUILTIN(DO)                                                \
@@ -384,7 +382,7 @@ VM_BUILTIN_DEFINE(begin_definition)(void)
 {
     TRY(vm_rstack_push((Cell)nptr));
     nptr = iptr + 1;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(end_definition)(void)
@@ -393,25 +391,25 @@ VM_BUILTIN_DEFINE(end_definition)(void)
     TRY(vm_rstack_pop(&return_addr));
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     nptr = (Vm_Builtin_Handler **)return_addr;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(push_cell_size)(void)
 {
     TRY(vm_pstack_push(VM_CELL_SIZE));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(push_here_address)(void)
 {
     TRY(vm_pstack_push((Cell)&here));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(push_latest_address)(void)
 {
     TRY(vm_pstack_push((Cell)&latest));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(fetch_cell)(void)
@@ -421,7 +419,7 @@ VM_BUILTIN_DEFINE(fetch_cell)(void)
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     Cell data = *(Cell *)addr;
     TRY(vm_pstack_push(data));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(store_cell)(void)
@@ -433,7 +431,7 @@ VM_BUILTIN_DEFINE(store_cell)(void)
     assert(VM_ADDR_ALIGNED(addr) && "addr not cell-aligned");
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     *((Cell *)addr) = data;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(fetch_byte)(void)
@@ -443,7 +441,7 @@ VM_BUILTIN_DEFINE(fetch_byte)(void)
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     Byte data = *(Byte *)addr;
     TRY(vm_pstack_push(data));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(store_byte)(void)
@@ -454,7 +452,7 @@ VM_BUILTIN_DEFINE(store_byte)(void)
     TRY(vm_pstack_pop(&data));
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     *((Byte *)addr) = (Byte)data;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(find_builtin)(void)
@@ -467,11 +465,11 @@ VM_BUILTIN_DEFINE(find_builtin)(void)
     if (SOME(found_xt))
     {
         TRY(vm_pstack_push(found_xt.data));
-        return VM_ERROR_OK;
+        return VM_OK;
     }
 
     TRY(vm_pstack_push(VM_FALSE));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(jump_conditional)(void)
@@ -489,7 +487,7 @@ VM_BUILTIN_DEFINE(jump_conditional)(void)
     {
         nptr += 1;
     }
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(jump_unconditional)(void)
@@ -498,7 +496,7 @@ VM_BUILTIN_DEFINE(jump_unconditional)(void)
     memcpy(&addr, (const void *)nptr, VM_CELL_SIZE);
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     nptr = (Vm_Builtin_Handler **)addr;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(get_next_char)(void)
@@ -506,7 +504,7 @@ VM_BUILTIN_DEFINE(get_next_char)(void)
     int chr = getchar();
     if (feof(stdin))
     {
-        return VM_ERROR_BYE;
+        return VM_BYE;
     }
     if (ferror(stdin))
     {
@@ -514,7 +512,7 @@ VM_BUILTIN_DEFINE(get_next_char)(void)
         return VM_ERROR_ABORT;
     }
     TRY(vm_pstack_push((Cell)chr));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(push_literal)(void)
@@ -522,7 +520,7 @@ VM_BUILTIN_DEFINE(push_literal)(void)
     Cell value = (Cell)*nptr;
     TRY(vm_pstack_push(value));
     nptr += 1;
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(execute)(void)
@@ -549,7 +547,7 @@ VM_BUILTIN_DEFINE(plus)(void)
     TRY(vm_pstack_pop(&x2));
     TRY(vm_pstack_pop(&x1));
     TRY(vm_pstack_push(x1 + x2));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(minus)(void)
@@ -559,7 +557,7 @@ VM_BUILTIN_DEFINE(minus)(void)
     TRY(vm_pstack_pop(&x2));
     TRY(vm_pstack_pop(&x1));
     TRY(vm_pstack_push(x1 - x2));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 VM_BUILTIN_DEFINE(equal)(void)
@@ -569,7 +567,7 @@ VM_BUILTIN_DEFINE(equal)(void)
     TRY(vm_pstack_pop(&x2));
     TRY(vm_pstack_pop(&x1));
     TRY(vm_pstack_push(x1 == x2 ? VM_TRUE : VM_FALSE));
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 /* Add a builtin word to the dictionary.
@@ -608,7 +606,7 @@ vm_add_builtin(size_t index, const char *name, Byte name_len, Byte flags)
     TRY(vm_store_cell((Cell)&vm_builtin_handlers[index]));
     latest = new_latest;
 
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 /* Number of bytes in a string literal, excluding the final NULL terminator.
@@ -629,7 +627,7 @@ vm_register_builtins(void)
     VM_FOR_EACH_BUILTIN(VM_REGISTER_BUILTIN)
 #undef VM_REGISTER_BUILTIN
 
-    return VM_ERROR_OK;
+    return VM_OK;
 }
 
 WARN_UNUSED_RESULT
@@ -658,13 +656,13 @@ vm_start(void)
     TRY(vm_store_cell((Cell)start));
     nptr = start;
 
-    Vm_Error err = VM_ERROR_OK;
+    Vm_Error err = VM_OK;
     do
     {
         iptr = nptr;
         nptr += 1;
         err = (**iptr)();
-    } while (err == VM_ERROR_OK);
+    } while (err == VM_OK);
 
     return err;
 }
@@ -684,7 +682,7 @@ static const char *vm_error_names[] = {
 static const char *
 vm_error_as_string(Vm_Error error)
 {
-    REQUIRE(VM_ERROR_OK >= error && error >= VM_ERROR_UNKNOWN)
+    REQUIRE(VM_OK >= error && error >= VM_ERROR_UNKNOWN)
     {
         return vm_error_names[abs(VM_ERROR_UNKNOWN)];
     }
@@ -723,18 +721,18 @@ vm_print_stack(void)
 int
 main(void)
 {
-    Vm_Error err = VM_ERROR_OK;
+    Vm_Error err = VM_OK;
 
     err = vm_register_builtins();
-    if (err != VM_ERROR_OK)
+    if (err != VM_OK)
     {
         vm_report_error(err, "failed to register builtins");
         return EXIT_FAILURE;
     }
 
     err = vm_start();
-    assert(err != VM_ERROR_OK && "unexpected VM_ERROR_OK");
-    if (err == VM_ERROR_BYE)
+    assert(err != VM_OK && "main loop exited unexpectedly with VM_OK");
+    if (err == VM_BYE)
     {
         vm_print_stack();
         puts(" ok");
