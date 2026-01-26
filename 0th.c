@@ -42,35 +42,29 @@
         }                                                                      \
     } while (0)
 
-/* Fundamental data types of the interpreter.
- *
- * VM_BYTE_TYPE represents the smallest addressable unit of memory (the address
- * unit). It typically corresponds to an 8-bit byte on most systems.
- *
- * VM_CELL_TYPE represents the unit of computation. It can hold pointers and
- * integer values efficiently, typically corresponding to the native word size
- * of the system.
- *
- * VM_FCELL_TYPE represents the unit of floating-point calculations. It defaults
- * to double-precision floating-point arithmetic (IEEE 754), but may be
- * redefined as single-precision (float) if the target platform doesn't support
+/* The smallest addressable unit of memory (the address unit). It typically
+ * corresponds to an 8-bit byte on most systems.
+ */
+typedef unsigned char Byte;
+
+/* The unit of computation. It can hold pointers and integer values efficiently,
+ * typically corresponding to the native word size of the system.
+ */
+typedef uintptr_t Cell;
+
+#if false
+/* The unit of floating-point calculations. It defaults to double-precision
+ * floating-point arithmetic (IEEE 754), but may be redefined as
+ * single-precision (float) if the target platform doesn't support
  * double-precision.
  */
-#define VM_BYTE_TYPE  unsigned char
-#define VM_BYTE_SIZE  (sizeof(VM_BYTE_TYPE))
-#define VM_CELL_TYPE  uintptr_t
-#define VM_CELL_SIZE  (sizeof(VM_CELL_TYPE))
-#define VM_FCELL_TYPE double
-#define VM_FCELL_SIZE (sizeof(VM_FCELL_TYPE))
-
-typedef VM_BYTE_TYPE Byte;
-typedef VM_CELL_TYPE Cell;
-typedef VM_FCELL_TYPE FCell;
+typedef double FCell;
+#endif
 
 #define VM_TRUE  ((Cell)(-1))
 #define VM_FALSE ((Cell)0)
 
-#define VM_ADDR_ALIGNED(addr) (((Cell)(addr) & (VM_CELL_SIZE - 1)) == 0)
+#define VM_ADDR_ALIGNED(addr) (((Cell)(addr) & (sizeof(Cell) - 1)) == 0)
 
 /* Memory layout and stack sizes for the interpreter.
  *
@@ -90,7 +84,7 @@ typedef VM_FCELL_TYPE FCell;
  * FSTACK has a capacity of 6 floating-point cells, which is the minimum
  * required by ANS Forth.
  */
-#define VM_MEMORY_SIZE  (5UL * 1024UL * VM_BYTE_SIZE)
+#define VM_MEMORY_SIZE  (5UL * 1024UL * sizeof(Byte))
 #define VM_PSTACK_COUNT (64U)
 #define VM_RSTACK_COUNT (64U)
 #if false
@@ -158,7 +152,7 @@ typedef Vm_Error (*Vm_Builtin_Handler)(void);
  */
 static union {
     Byte bytes[VM_MEMORY_SIZE];
-    Cell cells[VM_MEMORY_SIZE / VM_CELL_SIZE];
+    Cell cells[VM_MEMORY_SIZE / sizeof(Cell)];
 } memory;
 
 /* Next free cell in memory. Compiled words will go here. */
@@ -201,7 +195,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_align_here(void)
 {
-    while ((Cell)here & (VM_CELL_SIZE - 1))
+    while ((Cell)here & (sizeof(Cell) - 1))
     {
         TRY(vm_store_byte(0x0));
     }
@@ -213,8 +207,8 @@ static Vm_Error
 vm_store_cell(Cell data)
 {
     TRY(vm_align_here());
-    memcpy(here, &data, VM_CELL_SIZE);
-    here += VM_CELL_SIZE;
+    memcpy(here, &data, sizeof(Cell));
+    here += sizeof(Cell);
     return VM_OK;
 }
 
@@ -303,19 +297,19 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
     Byte *entry = latest;
     while (entry != NULL)
     {
-        // Name is at offset VM_CELL_SIZE + 1 (after link and len+flags byte)
-        char name = (char)entry[VM_CELL_SIZE + 1];
+        // Name is at offset 1 cell + 1 byte (after link and the len+flags byte)
+        char name = (char)entry[sizeof(Cell) + 1];
 
         if (name == name_to_find)
         {
             result->is = VM_SOME;
-            result->data = (Cell)&entry[VM_CELL_SIZE * 2];
+            result->data = (Cell)&entry[sizeof(Cell) * 2];
             return VM_OK;
         }
 
         // Follow link to previous entry
         Cell link;
-        memcpy(&link, entry, VM_CELL_SIZE);
+        memcpy(&link, entry, sizeof(Cell));
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
         entry = (Byte *)link;
     }
@@ -396,7 +390,7 @@ VM_BUILTIN_DEFINE(end_definition)(void)
 
 VM_BUILTIN_DEFINE(push_cell_size)(void)
 {
-    TRY(vm_pstack_push(VM_CELL_SIZE));
+    TRY(vm_pstack_push(sizeof(Cell)));
     return VM_OK;
 }
 
@@ -479,7 +473,7 @@ VM_BUILTIN_DEFINE(jump_conditional)(void)
     if (test == VM_FALSE)
     {
         Cell addr = 0;
-        memcpy(&addr, (const void *)nptr, VM_CELL_SIZE);
+        memcpy(&addr, (const void *)nptr, sizeof(Cell));
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
         nptr = (Vm_Builtin_Handler **)addr;
     }
@@ -493,7 +487,7 @@ VM_BUILTIN_DEFINE(jump_conditional)(void)
 VM_BUILTIN_DEFINE(jump_unconditional)(void)
 {
     Cell addr = 0;
-    memcpy(&addr, (const void *)nptr, VM_CELL_SIZE);
+    memcpy(&addr, (const void *)nptr, sizeof(Cell));
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     nptr = (Vm_Builtin_Handler **)addr;
     return VM_OK;
@@ -531,7 +525,7 @@ VM_BUILTIN_DEFINE(execute)(void)
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     Cell *validated_xt = (Cell *)xt;
     REQUIRE(VM_ADDR_ALIGNED(validated_xt) && &memory.cells[0] <= validated_xt &&
-            validated_xt < &memory.cells[VM_MEMORY_SIZE / VM_CELL_SIZE])
+            validated_xt < &memory.cells[VM_MEMORY_SIZE / sizeof(Cell)])
     {
         return VM_ERROR_INVALID_MEMORY_ADDRESS;
     }
@@ -709,7 +703,7 @@ vm_print_stack(void)
         printf("<%lu>", psp - &pstack[0]);
         for (Cell *ptr = &pstack[0]; ptr < psp; ++ptr)
         {
-            printf(" 0x%0*lX", (int)VM_CELL_SIZE, *ptr);
+            printf(" 0x%0*lX", (int)sizeof(Cell), *ptr);
         }
     }
     else
