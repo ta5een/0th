@@ -271,10 +271,16 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
     Byte *entry = latest;
     while (entry != NULL)
     {
-        // Name is at offset 1 cell + 1 byte (after link and the len+flags byte)
+        enum
+        {
+            // Length is stored in lower 5 bits of the length+flags byte
+            NAME_LEN_MASK = 0x1f
+        };
+        Byte name_len = entry[sizeof(Cell)] & NAME_LEN_MASK;
+        // Name is at offset 1 cell + 1 byte (after link and length+flags byte)
         char name = (char)entry[sizeof(Cell) + 1];
 
-        if (name == name_to_find)
+        if (name_len == 1 && name == name_to_find)
         {
             result->is = VM_SOME;
             result->data = (Cell)&entry[sizeof(Cell) * 2];
