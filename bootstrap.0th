@@ -1,0 +1,38 @@
+H@L@H@!H@C+H!k1k0-H@.k:k0-H@k1k0-+.H@C+H!k{f@H@!H@C+H!k}f@H@!H@C+H!L!
+H@L@H@!H@C+H!k1k0-H@.k H@k1k0-+.H@C+H!k{f@H@!H@C+H!k}f@H@!H@C+H!L!
+
+H@
+  L@      H@!       H@C+ H!
+  k1k0-   H@.
+  k\      H@k1k0-+. H@C+ H!
+  k{f@    H@!       H@C+ H!
+  H@
+    kkf@  H@!       H@C+ H!
+    klf@  H@!       H@C+ H!
+    k:k0- H@!       H@C+ H!
+    k=f@  H@!       H@C+ H!
+    kjf@  H@!       H@C+ H!
+          H@!       H@C+ H!
+  k}f@    H@!       H@C+ H!
+L!
+
+\ Line comments are now supported!
+
+\ C ( -- u )          Get size of cell in bytes
+\ H ( -- a-addr )     Get address of here. NOTE: Should this be address-aligned?
+\ L ( -- a-addr )     Get address of latest
+\ @ ( a-addr -- x )   Load cell x from addr
+\ $ ( c-addr -- c )   Load byte c from addr
+\ ! ( x a-addr -- )   Store cell x at addr
+\ . ( c c-addr -- )   Store byte c at addr
+\ f ( c -- xt )       Get execution token of c
+\ j ( ? -- )          Jump to address provided by next input token if ? = 0
+\ J ( -- )            Jump to address provided by next input token
+\ k ( -- c )          Get next byte in input
+\ l ( -- x )          Push next input token as literal
+\ x ( xt -- ... )     Run the execution token
+\ + ( x1 x2 -- x3 )   Push x3 where x3 = x1 + x2
+\ - ( x1 x2 -- x3 )   Push x3 where x3 = x1 - x2
+\ = ( x1 x2 -- ? )    If x1 = x2, pushes -1, else pushes 0
+
+\ vim:ft=forth

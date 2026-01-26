@@ -47,7 +47,7 @@
  * VM_BYTE_TYPE represents the smallest addressable unit of memory (the address
  * unit). It typically corresponds to an 8-bit byte on most systems.
  *
- * CELL_TYPE represents the unit of computation. It can hold pointers and
+ * VM_CELL_TYPE represents the unit of computation. It can hold pointers and
  * integer values efficiently, typically corresponding to the native word size
  * of the system.
  *
@@ -58,16 +58,19 @@
  */
 #define VM_BYTE_TYPE  unsigned char
 #define VM_BYTE_SIZE  (sizeof(VM_BYTE_TYPE))
-#define VM_BYTE_MAX   UCHAR_MAX
 #define VM_CELL_TYPE  uintptr_t
 #define VM_CELL_SIZE  (sizeof(VM_CELL_TYPE))
-#define VM_CELL_MAX   UINTPTR_MAX
 #define VM_FCELL_TYPE double
 #define VM_FCELL_SIZE (sizeof(VM_FCELL_TYPE))
 
 typedef VM_BYTE_TYPE Byte;
 typedef VM_CELL_TYPE Cell;
 typedef VM_FCELL_TYPE FCell;
+
+#define VM_TRUE  ((Cell)(-1))
+#define VM_FALSE ((Cell)0)
+
+#define VM_ADDR_ALIGNED(addr) (((Cell)(addr) & (VM_CELL_SIZE - 1)) == 0)
 
 /* Memory layout and stack sizes for the interpreter.
  *
@@ -90,13 +93,9 @@ typedef VM_FCELL_TYPE FCell;
 #define VM_MEMORY_SIZE  (5UL * 1024UL * VM_BYTE_SIZE)
 #define VM_PSTACK_COUNT (64U)
 #define VM_RSTACK_COUNT (64U)
-#define VM_FSTACK_COUNT (6U)
-#define VM_PSTACK_SIZE  (VM_PSTACK_COUNT * VM_CELL_SIZE)
-#define VM_RSTACK_SIZE  (VM_RSTACK_COUNT * VM_CELL_SIZE)
-#define VM_FSTACK_SIZE  (VM_FSTACK_COUNT * VM_FCELL_SIZE)
-
-/* Extra byte for null terminator. */
-#define VM_INPUT_BUFFER_NUM_BYTES (80U + 1U)
+#if false
+    #define VM_FSTACK_COUNT (6U)
+#endif
 
 /* Length and flags byte for dictionary word names
  *
@@ -123,19 +122,20 @@ typedef VM_FCELL_TYPE FCell;
  */
 #define VM_FOR_EACH_ERROR(DO)                                                  \
     DO(OK, 0)                                                                  \
-    DO(ABORT, -1)                                                              \
-    DO(PSTACK_OVERFLOW, -2)                                                    \
-    DO(PSTACK_UNDERFLOW, -3)                                                   \
-    DO(RSTACK_OVERFLOW, -4)                                                    \
-    DO(RSTACK_UNDERFLOW, -5)                                                   \
-    DO(FSTACK_OVERFLOW, -6)                                                    \
-    DO(FSTACK_UNDERFLOW, -7)                                                   \
-    DO(INVALID_MEMORY_ADDRESS, -8)                                             \
-    DO(OUT_OF_MEMORY, -9)                                                      \
-    DO(UNDEFINED_WORD, -10)                                                    \
-    DO(RESULT_OUT_OF_RANGE, -11)                                               \
-    DO(WORD_TOO_LONG, -12)                                                     \
-    DO(UNKNOWN, -13) // Must be last
+    DO(BYE, -1)                                                                \
+    DO(ABORT, -2)                                                              \
+    DO(PSTACK_OVERFLOW, -3)                                                    \
+    DO(PSTACK_UNDERFLOW, -4)                                                   \
+    DO(RSTACK_OVERFLOW, -5)                                                    \
+    DO(RSTACK_UNDERFLOW, -6)                                                   \
+    DO(FSTACK_OVERFLOW, -7)                                                    \
+    DO(FSTACK_UNDERFLOW, -8)                                                   \
+    DO(INVALID_MEMORY_ADDRESS, -9)                                             \
+    DO(OUT_OF_MEMORY, -10)                                                     \
+    DO(UNDEFINED_WORD, -11)                                                    \
+    DO(RESULT_OUT_OF_RANGE, -12)                                               \
+    DO(WORD_TOO_LONG, -13)                                                     \
+    DO(UNKNOWN, -14) // Must be last
 
 /* A fixed set of return values for all interpreter operations, indicating
  * success or failure.
@@ -150,213 +150,138 @@ typedef enum
 #undef VM_EMIT_ERROR_ENUM
 } Vm_Error;
 
-/* Controls how the interpreter processes words. */
-typedef enum
-{
-    /* Executes words immediately as encountered. */
-    VM_MODE_INTERPRET = 0,
-    /* Compiles words into the current definition in the dictionary. */
-    VM_MODE_COMPILE = 1,
-} Vm_Mode;
+/* Function pointer type for builtin primitive handlers. */
+typedef Vm_Error (*Vm_Builtin_Handler)(void);
 
-typedef struct
-{
-    /* Current execution mode. */
-    Vm_Mode mode;
-    /* Address to the most recently-defined word in the dictionary. */
-    Cell latest;
-    /* Next free cell in memory. Compiled words will go here. */
-    Cell here;
-    /* Current position in the instruction stream. */
-    Cell ip;
+/* The program's main memory.
+ *
+ * Stores dictionary entries for all words (builtin and user-defined),
+ * compiled code for user-defined words, and variables.
+ */
+static union {
+    Byte bytes[VM_MEMORY_SIZE];
+    Cell cells[VM_MEMORY_SIZE / VM_CELL_SIZE];
+} memory;
 
-    /* Index of the current position in the parameter stack. */
-    Cell psp;
-    /* Base of the parameter stack. */
-    Cell pstack[VM_PSTACK_COUNT];
+/* Next free cell in memory. Compiled words will go here. */
+static Byte *here = memory.bytes;
+/* Cell-aligned address to the most recently-defined word in the dictionary. */
+static Byte *latest = NULL;
 
-    /* Index of the current position in the return stack. */
-    Cell rsp;
-    /* Base of the return stack. */
-    Cell rstack[VM_RSTACK_COUNT];
+/* Instruction pointer: points to the code field being executed. */
+static Vm_Builtin_Handler **iptr = NULL;
+/* Next pointer: where execution continues in the compiled code stream. */
+static Vm_Builtin_Handler **nptr = NULL;
 
-    /* Index of the current position in the floating point stack. */
-    Cell fsp;
-    /* Base of the floating point stack. */
-    FCell fstack[VM_FSTACK_COUNT];
+/* Base of the parameter stack. */
+static Cell pstack[VM_PSTACK_COUNT];
+/* Current position in the parameter stack. */
+static Cell *psp = pstack;
 
-    Byte input_buffer[VM_INPUT_BUFFER_NUM_BYTES];
-    size_t input_buffer_len;
-    size_t input_buffer_pos;
+/* Base of the return stack. */
+static Cell rstack[VM_RSTACK_COUNT];
+/* Current position in the return stack. */
+static Cell *rsp = rstack;
 
-    /* The program's main memory.
-     *
-     * Stores dictionary entries for all words (builtin and user-defined),
-     * compiled code for user-defined words, and variables.
-     */
-    Byte memory[VM_MEMORY_SIZE];
-} Vm;
+#if false
+/* Base of the floating point stack. */
+static FCell fstack[VM_FSTACK_COUNT];
+/* Current position in the floating point stack. */
+static FCell *fsp = fstack;
+#endif
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_read_cell(Vm *vm, Cell address, Cell *data)
+vm_store_byte(Byte data)
 {
-    REQUIRE(address + VM_CELL_SIZE <= VM_MEMORY_SIZE)
-    {
-        return VM_ERROR_INVALID_MEMORY_ADDRESS;
-    }
-
-    memcpy(data, vm->memory + address, VM_CELL_SIZE);
+    *here = data;
+    here += 1;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_write_byte(Vm *vm, Cell address, Byte data)
+vm_align_here(void)
 {
-    REQUIRE(address + VM_BYTE_SIZE <= VM_MEMORY_SIZE)
+    while ((Cell)here & (VM_CELL_SIZE - 1))
     {
-        return VM_ERROR_OUT_OF_MEMORY;
-    }
-
-    vm->memory[address] = data;
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_write_cell(Vm *vm, Cell address, Cell data)
-{
-    REQUIRE(address + VM_CELL_SIZE <= VM_MEMORY_SIZE)
-    {
-        return VM_ERROR_OUT_OF_MEMORY;
-    }
-
-    memcpy(vm->memory + address, &data, VM_CELL_SIZE);
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_write_data(Vm *vm, Cell address, size_t len, const void *data)
-{
-    REQUIRE(address + len <= VM_MEMORY_SIZE)
-    {
-        return VM_ERROR_INVALID_MEMORY_ADDRESS;
-    }
-
-    memcpy(vm->memory + address, data, len);
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_store_byte(Vm *vm, Byte data)
-{
-    TRY(vm_write_byte(vm, vm->here, data));
-    vm->here += VM_BYTE_SIZE;
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_align_here(Vm *vm)
-{
-    while (vm->here & (VM_CELL_SIZE - 1))
-    {
-        TRY(vm_store_byte(vm, 0x0));
+        TRY(vm_store_byte(0x0));
     }
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_store_cell(Vm *vm, Cell data)
+vm_store_cell(Cell data)
 {
-    // Align vm->here to cell boundary if needed
-    TRY(vm_align_here(vm));
-    TRY(vm_write_cell(vm, vm->here, data));
-    vm->here += VM_CELL_SIZE;
+    TRY(vm_align_here());
+    memcpy(here, &data, VM_CELL_SIZE);
+    here += VM_CELL_SIZE;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_store_data(Vm *vm, size_t len, const void *data)
+vm_store_data(size_t len, const void *data)
 {
-    TRY(vm_write_data(vm, vm->here, len, data));
-    vm->here += len;
+    memcpy(here, data, len);
+    here += len;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_pstack_push(Vm *vm, Cell data)
+vm_pstack_push(Cell data)
 {
-    REQUIRE(vm->psp < VM_PSTACK_SIZE)
+    REQUIRE(psp < &pstack[VM_PSTACK_COUNT - 1])
     {
         return VM_ERROR_PSTACK_OVERFLOW;
     }
 
-    vm->pstack[vm->psp] = data;
-    vm->psp += 1;
+    *psp = data;
+    psp += 1;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_pstack_pop(Vm *vm, Cell *data)
+vm_pstack_pop(Cell *data)
 {
-    REQUIRE(vm->psp > 0)
+    REQUIRE(psp > &pstack[0])
     {
         return VM_ERROR_PSTACK_UNDERFLOW;
     }
 
-    vm->psp -= 1;
-    *data = vm->pstack[vm->psp];
+    psp -= 1;
+    *data = *psp;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_pstack_peek(Vm *vm, Cell *data)
+vm_rstack_push(Cell address)
 {
-    REQUIRE(vm->psp > 0)
-    {
-        return VM_ERROR_PSTACK_UNDERFLOW;
-    }
-
-    *data = vm->pstack[vm->psp - 1];
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_rstack_push(Vm *vm, Cell address)
-{
-    REQUIRE(vm->rsp < VM_RSTACK_SIZE)
+    REQUIRE(rsp < &rstack[VM_RSTACK_COUNT - 1])
     {
         return VM_ERROR_RSTACK_OVERFLOW;
     }
 
-    vm->rstack[vm->rsp] = address;
-    vm->rsp += 1;
+    *rsp = address;
+    rsp += 1;
     return VM_ERROR_OK;
 }
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_rstack_pop(Vm *vm, Cell *address)
+vm_rstack_pop(Cell *address)
 {
-    REQUIRE(vm->rsp > 0)
+    REQUIRE(rsp > &rstack[0])
     {
         return VM_ERROR_RSTACK_UNDERFLOW;
     }
 
-    // The return address previously at vm->rsp can now be overwritten.
-    vm->rsp -= 1;
-    // The out parameter is given a copy of the now-discarded return address.
-    *address = vm->rstack[vm->rsp];
+    rsp -= 1;
+    *address = *rsp;
     return VM_ERROR_OK;
 }
 
@@ -375,237 +300,75 @@ typedef struct
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_find_word(Vm *vm, size_t name_len, const char name[name_len],
-             Vm_Maybe_Cell *result)
+vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
 {
-    // Is the provided name too long to be in the dictionary?
-    if (name_len > VM_DICT_NAME_LENGTH_MASK)
+    Byte *entry = latest;
+    while (entry != NULL)
     {
-        result->is = VM_NONE;
-        result->data = (Cell)0;
-        return VM_ERROR_OK;
-    }
+        // Name is at offset VM_CELL_SIZE + 1 (after link and len+flags byte)
+        char name = (char)entry[VM_CELL_SIZE + 1];
 
-    Cell entry = vm->latest;
-    while (entry != 0)
-    {
+        if (name == name_to_find)
+        {
+            result->is = VM_SOME;
+            result->data = (Cell)&entry[VM_CELL_SIZE * 2];
+            return VM_ERROR_OK;
+        }
+
+        // Follow link to previous entry
         Cell link;
-        TRY(vm_read_cell(vm, entry, &link));
-
-        Byte len_flags = vm->memory[entry + VM_CELL_SIZE];
-        Byte len = len_flags & VM_DICT_NAME_LENGTH_MASK;
-
-        if (len_flags & VM_DICT_FLAG_HIDDEN)
-        {
-            entry = link;
-            continue;
-        }
-
-        if (len == name_len)
-        {
-            Byte *entry_name = vm->memory + entry + VM_CELL_SIZE + VM_BYTE_SIZE;
-            if (memcmp(entry_name, name, len) == 0)
-            {
-                Cell xt_addr = entry + VM_CELL_SIZE + VM_BYTE_SIZE + len;
-                // Align to next cell boundary
-                xt_addr = (xt_addr + VM_CELL_SIZE - 1) & ~(VM_CELL_SIZE - 1);
-                TRY(vm_read_cell(vm, xt_addr, &result->data));
-                result->is = VM_SOME;
-                return VM_ERROR_OK;
-            }
-        }
-
-        entry = link;
+        memcpy(&link, entry, VM_CELL_SIZE);
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        entry = (Byte *)link;
     }
 
+    // Not found
     result->is = VM_NONE;
-    result->data = (Cell)0;
+    result->data = VM_FALSE;
     return VM_ERROR_OK;
 }
 
 #define VM_FOR_EACH_BUILTIN(DO)                                                \
-    DO(enter, "enter", VM_DICT_FLAG_NONE)                                      \
-    DO(exit, "exit", VM_DICT_FLAG_NONE)                                        \
-    DO(drop, "drop", VM_DICT_FLAG_NONE)                                        \
-    DO(swap, "swap", VM_DICT_FLAG_NONE)                                        \
-    DO(dup, "dup", VM_DICT_FLAG_NONE)                                          \
-    DO(literal, "literal", VM_DICT_FLAG_NONE)                                  \
-    DO(plus, "+", VM_DICT_FLAG_NONE)                                           \
-    DO(find, "find", VM_DICT_FLAG_NONE)                                        \
-    DO(quit, "quit", VM_DICT_FLAG_NONE)
+    DO("{", begin_definition, VM_DICT_FLAG_NONE)                               \
+    DO("}", end_definition, VM_DICT_FLAG_NONE)                                 \
+    DO("C", push_cell_size, VM_DICT_FLAG_NONE)                                 \
+    DO("H", push_here_address, VM_DICT_FLAG_NONE)                              \
+    DO("L", push_latest_address, VM_DICT_FLAG_NONE)                            \
+    DO("@", fetch_cell, VM_DICT_FLAG_NONE)                                     \
+    DO("!", store_cell, VM_DICT_FLAG_NONE)                                     \
+    DO("$", fetch_byte, VM_DICT_FLAG_NONE)                                     \
+    DO(".", store_byte, VM_DICT_FLAG_NONE)                                     \
+    DO("f", find_builtin, VM_DICT_FLAG_NONE)                                   \
+    DO("j", jump_conditional, VM_DICT_FLAG_NONE)                               \
+    DO("J", jump_unconditional, VM_DICT_FLAG_NONE)                             \
+    DO("k", get_next_char, VM_DICT_FLAG_NONE)                                  \
+    DO("l", push_literal, VM_DICT_FLAG_NONE)                                   \
+    DO("x", execute, VM_DICT_FLAG_NONE)                                        \
+    DO("+", plus, VM_DICT_FLAG_NONE)                                           \
+    DO("-", minus, VM_DICT_FLAG_NONE)                                          \
+    DO("=", equal, VM_DICT_FLAG_NONE)
 
 typedef enum
 {
-#define VM_EMIT_BUILTIN_ID(c_name, _name, _flags) VM_BUILTIN_ID_##c_name,
+#define VM_EMIT_BUILTIN_ID(_name, c_name, _flags) VM_BUILTIN_ID_##c_name,
     VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_ID)
 #undef VM_EMIT_BUILTIN_ID
 } Vm_Builtin_Id;
 
-/* Helper macro for defining builtin handler functions.
+#define VM_EMIT_BUILTIN_PROTO(_name, c_name, _flags)                           \
+    static Vm_Error vm_builtin_##c_name(void);
+VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_PROTO)
+#undef VM_EMIT_BUILTIN_PROTO
+
+/* Dispatch table of builtin handler functions.
  *
- * Expands to a function signature for a builtin handler with the given name.
- * All builtin handlers have the signature: Vm_Error vm_builtin_NAME(Vm *vm)
- */
-#define VM_BUILTIN_DEFINE(word)                                                \
-    WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
-
-/* ( -- ) ( R: -- addr )
- *
- * Push the current instruction pointer addr onto the return stack.
- */
-VM_BUILTIN_DEFINE(enter)(Vm *vm)
-{
-    // FIXME: hard-coded builtin index
-    assert(vm->ip > VM_BUILTIN_ID_quit && "cannot ENTER builtin word");
-    TRY(vm_rstack_push(vm, vm->ip));
-    return VM_ERROR_OK;
-}
-
-/* ( -- ) ( R: addr -- )
- *
- * Pop addr from the return stack and restore it as the instruction pointer.
- */
-VM_BUILTIN_DEFINE(exit)(Vm *vm)
-{
-    Cell new_ip = 0;
-    TRY(vm_rstack_pop(vm, &new_ip));
-    vm->ip = new_ip;
-    return VM_ERROR_OK;
-}
-
-/* ( x -- )
- *
- * Remove x from the stack.
- */
-VM_BUILTIN_DEFINE(drop)(Vm *vm)
-{
-    Cell ignored_dropped_value = 0;
-    TRY(vm_pstack_pop(vm, &ignored_dropped_value));
-    return VM_ERROR_OK;
-}
-
-/* ( x1 x2 -- x2 x1 )
- *
- * Exchange the top two stack items x1 and x2.
- */
-VM_BUILTIN_DEFINE(swap)(Vm *vm)
-{
-    Cell x = 0;
-    Cell y = 0;
-    TRY(vm_pstack_pop(vm, &x));
-    TRY(vm_pstack_pop(vm, &y));
-    TRY(vm_pstack_push(vm, x));
-    TRY(vm_pstack_push(vm, y));
-    return VM_ERROR_OK;
-}
-
-/* ( x -- x x )
- *
- * Duplicate x.
- */
-VM_BUILTIN_DEFINE(dup)(Vm *vm)
-{
-    Cell top = 0;
-    TRY(vm_pstack_peek(vm, &top));
-    TRY(vm_pstack_push(vm, top));
-    return VM_ERROR_OK;
-}
-
-/* ( -- x )
- *
- * Push the value x from the next cell in the instruction stream.
- */
-VM_BUILTIN_DEFINE(literal)(Vm *vm)
-{
-    Cell value = 0;
-    memcpy(&value, vm->memory + vm->ip, VM_CELL_SIZE);
-    vm->ip += VM_CELL_SIZE;
-    TRY(vm_pstack_push(vm, value));
-    return VM_ERROR_OK;
-}
-
-/* ( n1|u1 n2|u2 -- n3|u3 )
- *
- * Add n2|u2 to n1|u1, giving the sum n3|u3.
- */
-VM_BUILTIN_DEFINE(plus)(Vm *vm)
-{
-    Cell x = 0;
-    Cell y = 0;
-    TRY(vm_pstack_pop(vm, &x));
-    TRY(vm_pstack_pop(vm, &y));
-    TRY(vm_pstack_push(vm, x + y));
-    return VM_ERROR_OK;
-}
-
-/* ( c-addr u -- c-addr u 0 | xt 1 | xt -1 )
- *
- * Find the definition named by the string at c-addr with length u. Returns
- * c-addr, u, and zero if the definition is not found. Returns xt and one (1)
- * if the word is immediate, or xt and minus-one (-1) otherwise.
- *
- * NOTE: c-addr is an offset into VM memory, not a native pointer.
- * NOTE: Dictionary entries are case-sensitive.
- * TODO: Consider refactoring implementation to match proposed FIND-NAME and
- *       FIND-NAME-IN behaviors.
- */
-VM_BUILTIN_DEFINE(find)(Vm *vm)
-{
-    Cell name_len = 0;
-    Cell name_addr = 0;
-    TRY(vm_pstack_pop(vm, &name_len));
-    TRY(vm_pstack_pop(vm, &name_addr));
-
-    REQUIRE(name_addr + name_len <= VM_MEMORY_SIZE)
-    {
-        return VM_ERROR_INVALID_MEMORY_ADDRESS;
-    }
-
-    char *str = (char *)(vm->memory + name_addr);
-    Vm_Maybe_Cell xt = {0};
-    TRY(vm_find_word(vm, name_len, str, &xt));
-
-    if (NONE(xt))
-    {
-        TRY(vm_pstack_push(vm, name_addr));
-        TRY(vm_pstack_push(vm, name_len));
-        TRY(vm_pstack_push(vm, 0));
-        return VM_ERROR_OK;
-    }
-
-    TRY(vm_pstack_push(vm, xt.data));
-    // TODO: Push 1 if definition is immediate
-    TRY(vm_pstack_push(vm, (Cell)-1));
-
-    return VM_ERROR_OK;
-}
-
-/* ( -- ) ( R: i * x -- )
- *
- * Clear the return stack and enter the interpretation state. Repeatedly
- * accept and interpret lines of input.
- */
-VM_BUILTIN_DEFINE(quit)(Vm *vm)
-{
-    UNUSED(vm);
-    TODO("quit");
-    return VM_ERROR_OK;
-}
-
-/* Function pointer type for builtin primitive handlers.
- *
- * Each builtin takes a pointer to the VM and returns an error code.
- */
-typedef Vm_Error (*Vm_Builtin_Handler)(Vm *vm);
-
-/* Dispatch table mapping builtin indices to handler functions.
- *
- * When the VM encounters a codeword in the range [0, VM_BUILTIN_HANDLER_COUNT),
- * it treats it as a builtin primitive and calls the handler at that index in
- * this array. The order of handlers matches the order in VM_FOR_EACH_BUILTIN.
+ * Code fields store pointers INTO this array (e.g., &vm_builtin_handlers[0]),
+ * not function pointers directly. This avoids undefined behavior (Cell can't
+ * portably hold function pointers) and enables uniform double-dereference for
+ * both builtins and user-defined words.
  */
 static const Vm_Builtin_Handler vm_builtin_handlers[] = {
-#define VM_EMIT_BUILTIN_FN(c_name, _name, _flags) vm_builtin_##c_name,
+#define VM_EMIT_BUILTIN_FN(_name, c_name, _flags) vm_builtin_##c_name,
     VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_FN)
 #undef VM_EMIT_BUILTIN_FN
 };
@@ -613,26 +376,216 @@ static const Vm_Builtin_Handler vm_builtin_handlers[] = {
 #define VM_BUILTIN_HANDLER_COUNT                                               \
     (sizeof(vm_builtin_handlers) / sizeof(Vm_Builtin_Handler))
 
+/* Helper macro for defining builtin handler functions. */
+#define VM_BUILTIN_DEFINE(word)                                                \
+    WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
+
+VM_BUILTIN_DEFINE(begin_definition)(void)
+{
+    TRY(vm_rstack_push((Cell)nptr));
+    nptr = iptr + 1;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(end_definition)(void)
+{
+    Cell return_addr;
+    TRY(vm_rstack_pop(&return_addr));
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    nptr = (Vm_Builtin_Handler **)return_addr;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(push_cell_size)(void)
+{
+    TRY(vm_pstack_push(VM_CELL_SIZE));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(push_here_address)(void)
+{
+    TRY(vm_pstack_push((Cell)&here));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(push_latest_address)(void)
+{
+    TRY(vm_pstack_push((Cell)&latest));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(fetch_cell)(void)
+{
+    Cell addr = 0;
+    TRY(vm_pstack_pop(&addr));
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    Cell data = *(Cell *)addr;
+    TRY(vm_pstack_push(data));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(store_cell)(void)
+{
+    Cell data = 0;
+    Cell addr = 0;
+    TRY(vm_pstack_pop(&addr));
+    TRY(vm_pstack_pop(&data));
+    assert(VM_ADDR_ALIGNED(addr) && "addr not cell-aligned");
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    *((Cell *)addr) = data;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(fetch_byte)(void)
+{
+    Cell addr = 0;
+    TRY(vm_pstack_pop(&addr));
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    Byte data = *(Byte *)addr;
+    TRY(vm_pstack_push(data));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(store_byte)(void)
+{
+    Cell data = 0;
+    Cell addr = 0;
+    TRY(vm_pstack_pop(&addr));
+    TRY(vm_pstack_pop(&data));
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    *((Byte *)addr) = (Byte)data;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(find_builtin)(void)
+{
+    Cell name_to_find = 0;
+    TRY(vm_pstack_pop(&name_to_find));
+
+    Vm_Maybe_Cell found_xt = {0};
+    TRY(vm_find_builtin((char)name_to_find, &found_xt));
+    if (SOME(found_xt))
+    {
+        TRY(vm_pstack_push(found_xt.data));
+        return VM_ERROR_OK;
+    }
+
+    TRY(vm_pstack_push(VM_FALSE));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(jump_conditional)(void)
+{
+    Cell test = 0;
+    TRY(vm_pstack_pop(&test));
+    if (test == VM_FALSE)
+    {
+        Cell addr = 0;
+        memcpy(&addr, (const void *)nptr, VM_CELL_SIZE);
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        nptr = (Vm_Builtin_Handler **)addr;
+    }
+    else
+    {
+        nptr += 1;
+    }
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(jump_unconditional)(void)
+{
+    Cell addr = 0;
+    memcpy(&addr, (const void *)nptr, VM_CELL_SIZE);
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    nptr = (Vm_Builtin_Handler **)addr;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(get_next_char)(void)
+{
+    int chr = getchar();
+    if (feof(stdin))
+    {
+        return VM_ERROR_BYE;
+    }
+    if (ferror(stdin))
+    {
+        perror("Failed to read from stdin");
+        return VM_ERROR_ABORT;
+    }
+    TRY(vm_pstack_push((Cell)chr));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(push_literal)(void)
+{
+    Cell value = (Cell)*nptr;
+    TRY(vm_pstack_push(value));
+    nptr += 1;
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(execute)(void)
+{
+    Cell token = 0;
+    TRY(vm_pstack_pop(&token));
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    iptr = (Vm_Builtin_Handler **)token;
+    return (**iptr)();
+}
+
+VM_BUILTIN_DEFINE(plus)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_pop(&x1));
+    TRY(vm_pstack_push(x1 + x2));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(minus)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_pop(&x1));
+    TRY(vm_pstack_push(x1 - x2));
+    return VM_ERROR_OK;
+}
+
+VM_BUILTIN_DEFINE(equal)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_pop(&x1));
+    TRY(vm_pstack_push(x1 == x2 ? VM_TRUE : VM_FALSE));
+    return VM_ERROR_OK;
+}
+
 /* Add a builtin word to the dictionary.
  *
  * Creates a dictionary entry with the following structure:
  *
  *   <───────────── dictionary entry header ───────────────>
  *   ┌──────────────────┬──────────┬────────────────╴╴╴╴╴╴╴┬──────────────────┐
- *   │ link index       │ length + │ name + padding        │ codeword         │
+ *   │ link             │ length + │ name + padding        │ code field       │
  *   │                  │ flags    │                       │                  │
  *   └─(1 cell)─────────┴─(1 byte)─┴─(n bytes)──────╴╴╴╴╴╴╴┴─(1 cell)─────────┘
  *
- * - link:          index of previous word's header (forms linked list)
- * - length+flags:  packed byte containing name length and flags
- * - name:          variable-length name string (not null-terminated)
- * - padding:       zero-padding to align codeword to cell boundary
- * - codeword:      builtin index used to dispatch to vm_builtin_handlers[index]
+ * - link:         address of previous word's header (forms linked list)
+ * - length+flags: packed byte containing name length and flags
+ * - name:         variable-length name string (not null-terminated)
+ * - padding:      zero-padding to align code field to cell boundary
+ * - code field:   pointer into vm_builtin_handlers (see dispatch table comment)
+ *
+ * TODO: The fields in builtin definition entries could be packed tighter since
+ *       builtins always have a 1-character name.
  */
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
-               Byte flags)
+vm_add_builtin(size_t index, const char *name, Byte name_len, Byte flags)
 {
     assert(index < VM_BUILTIN_HANDLER_COUNT && "index out of bounds");
     assert(name != NULL && "name is NULL");
@@ -640,18 +593,12 @@ vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
     assert(name_len <= VM_DICT_NAME_LENGTH_MASK && "name too long");
     assert((flags & VM_DICT_NAME_LENGTH_MASK) == 0 && "flags overlap length");
 
-    Cell new_latest = vm->here;
-
-    TRY(vm_store_cell(vm, vm->latest));
-    TRY(vm_store_byte(vm, name_len | flags));
-    TRY(vm_store_data(vm, name_len, name));
-
-    // Store builtin index as codeword. The VM treats codewords in the range
-    // [0, VM_BUILTIN_HANDLER_COUNT) as builtin primitives and dispatches them
-    // via the vm_builtin_handlers[] function-pointer array.
-    TRY(vm_store_cell(vm, index));
-
-    vm->latest = new_latest;
+    Byte *new_latest = here;
+    TRY(vm_store_cell((Cell)latest));
+    TRY(vm_store_byte(name_len | flags));
+    TRY(vm_store_data(name_len, name));
+    TRY(vm_store_cell((Cell)&vm_builtin_handlers[index]));
+    latest = new_latest;
 
     return VM_ERROR_OK;
 }
@@ -665,347 +612,53 @@ vm_add_builtin(Vm *vm, size_t index, const char *name, Byte name_len,
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_register_builtins(Vm *vm)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+vm_register_builtins(void)
 {
-#define VM_REGISTER_BUILTIN(c_name, name, flags)                               \
-    TRY(vm_add_builtin(vm, VM_BUILTIN_ID_##c_name, name,                       \
-                       VM_STR_LIT_LENGTH(name), flags));
+#define VM_REGISTER_BUILTIN(name, c_name, flags)                               \
+    TRY(vm_add_builtin(VM_BUILTIN_ID_##c_name, name, VM_STR_LIT_LENGTH(name),  \
+                       flags));
     VM_FOR_EACH_BUILTIN(VM_REGISTER_BUILTIN)
 #undef VM_REGISTER_BUILTIN
 
     return VM_ERROR_OK;
 }
 
-/* clang-format off */
-#define xx ((unsigned char)-1)
-/* Lookup table mapping ASCII characters to digit values (0-35).
- * Invalid characters map to 0xFF (255), which exceeds any valid base.
- */
-static const unsigned char char_to_digit[] = {
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-     0,  1,  2,  3,  4,  5,  6,  7,
-     8,  9, xx, xx, xx, xx, xx, xx,
-    xx, 10, 11, 12, 13, 14, 15, 16,
-    17, 18, 19, 20, 21, 22, 23, 24,
-    25, 26, 27, 28, 29, 30, 31, 32,
-    33, 34, 35, xx, xx, xx, xx, xx,
-    xx, 10, 11, 12, 13, 14, 15, 16,
-    17, 18, 19, 20, 21, 22, 23, 24,
-    25, 26, 27, 28, 29, 30, 31, 32,
-    33, 34, 35, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-    xx, xx, xx, xx, xx, xx, xx, xx,
-};
-#undef xx
-/* clang-format on */
-
-/* Parse str as an unsigned integer in the given base (2-36).
- *
- * Returns VM_ERROR_RESULT_OUT_OF_RANGE if the value would overflow a Cell.
- *
- * Derived from musl libc's intscan.c (MIT license):
- * https://github.com/kraj/musl/blob/ff441c9ddfefbb94e5881ddd5112b24a944dc36c/src/internal/intscan.c#L26
- */
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_parse_digit_string(size_t str_len, const char str[str_len], Cell base,
-                      Vm_Maybe_Cell *result)
+vm_start(void)
 {
-    assert(2 <= base && base <= 36 && "base out of range");
+    TRY(vm_align_here());
+    // NOLINTNEXTLINE(bugprone-casting-through-void)
+    Vm_Builtin_Handler **start = (Vm_Builtin_Handler **)(void *)here;
 
-    result->is = VM_NONE;
-    result->data = 0;
-
-    if (str_len == 0)
+    const char main_loop[] = {'k', 'f', 'x', 'J'};
+    size_t main_loop_len = sizeof(main_loop);
+    for (size_t i = 0; i < main_loop_len; ++i)
     {
-        return VM_ERROR_OK;
-    }
-
-    for (size_t i = 0; i < str_len; ++i)
-    {
-        unsigned char digit_char = (unsigned char)str[i];
-        unsigned char digit_value = char_to_digit[digit_char];
-
-        if (digit_value >= base)
+        Vm_Maybe_Cell found_xt_addr = {0};
+        TRY(vm_find_builtin(main_loop[i], &found_xt_addr));
+        if (NONE(found_xt_addr))
         {
-            return VM_ERROR_OK;
+            return VM_ERROR_ABORT;
         }
 
-        if (result->data > (VM_CELL_MAX - digit_value) / base)
-        {
-            return VM_ERROR_RESULT_OUT_OF_RANGE;
-        }
-
-        result->data = result->data * base + digit_value;
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        TRY(vm_store_cell((Cell)(*(Vm_Builtin_Handler **)found_xt_addr.data)));
     }
 
-    result->is = VM_SOME;
-    return VM_ERROR_OK;
-}
+    TRY(vm_store_cell((Cell)start));
+    nptr = start;
 
-/* Parse an integer literal with optional sign and base prefix.
- *
- * An optional "+" or "-" sign may precede the number. The base (2-36) can be
- * specified with the "N#" prefix, where N is the base in decimal. Without a
- * prefix, base 10 is assumed. Digits a-z and A-Z represent values 10-35.
- *
- * Examples: "42", "-42", "16#ff", "-2#1010", "+8#777"
- *
- * Returns VM_ERROR_RESULT_OUT_OF_RANGE if the value would overflow a Cell.
- */
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_parse_integer_literal(size_t str_len, const char str[str_len],
-                         Vm_Maybe_Cell *result)
-{
-    result->is = VM_NONE;
-    result->data = 0;
-
-    if (str_len == 0)
+    Vm_Error err = VM_ERROR_OK;
+    do
     {
-        return VM_ERROR_OK;
-    }
+        iptr = nptr;
+        nptr += 1;
+        err = (**iptr)();
+    } while (err == VM_ERROR_OK);
 
-    bool negative = false;
-    if (str[0] == '-' || str[0] == '+')
-    {
-        negative = str[0] == '-';
-        str += 1;
-        str_len -= 1;
-    }
-
-    enum
-    {
-        VM_INTEGER_DECIMAL = 10
-    };
-    Cell base = VM_INTEGER_DECIMAL;
-
-    size_t number_start = 0;
-    const char *hash = memchr(str, '#', str_len);
-    if (hash != NULL)
-    {
-        size_t hash_index = (size_t)(hash - str);
-        number_start = hash_index + 1;
-
-        // The base prefix must be one or two digits (e.g., 2# or 16#)
-        REQUIRE(hash_index == 1 || hash_index == 2)
-        {
-            return VM_ERROR_OK;
-        }
-
-        // The literal must have digits after the base prefix
-        REQUIRE(number_start < str_len)
-        {
-            return VM_ERROR_OK;
-        }
-
-        Vm_Maybe_Cell parsed_base = {0};
-        TRY(vm_parse_digit_string(hash_index, str, 10, &parsed_base));
-        if (NONE(parsed_base))
-        {
-            return VM_ERROR_OK;
-        }
-
-        REQUIRE(2 <= parsed_base.data && parsed_base.data <= 36)
-        {
-            return VM_ERROR_OK;
-        }
-
-        base = parsed_base.data;
-    }
-
-    TRY(vm_parse_digit_string(str_len - number_start, str + number_start, base,
-                              result));
-
-    if (SOME(*result) && negative)
-    {
-        result->data = -result->data;
-    }
-
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static bool
-vm_is_whitespace(Byte byte)
-{
-    switch ((char)byte)
-    {
-    case ' ':  /* fallthrough */
-    case '\t': /* fallthrough */
-    case '\n': /* fallthrough */
-    case '\r':
-        return true;
-    default:
-        return false;
-    }
-}
-
-typedef struct
-{
-    /* Inclusive start index. */
-    size_t start;
-    /* Exclusive end index. */
-    size_t end;
-} Vm_Buffer_Range;
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_next_word(Vm *vm, Vm_Buffer_Range *out_word_range)
-{
-    // Skip leading whitespaces
-    while (vm->input_buffer_pos < vm->input_buffer_len &&
-           vm_is_whitespace(vm->input_buffer[vm->input_buffer_pos]))
-    {
-        vm->input_buffer_pos += 1;
-    }
-
-    out_word_range->start = vm->input_buffer_pos;
-
-    // Extract word
-    while (vm->input_buffer_pos < vm->input_buffer_len &&
-           !vm_is_whitespace(vm->input_buffer[vm->input_buffer_pos]))
-    {
-        vm->input_buffer_pos += 1;
-    }
-
-    out_word_range->end = vm->input_buffer_pos;
-
-    return VM_ERROR_OK;
-}
-
-static char *
-vm_read_input(Vm *vm, size_t buffer_offset)
-{
-    assert(buffer_offset < sizeof(vm->input_buffer) && "invalid offset");
-    size_t buffer_size = sizeof(vm->input_buffer) - buffer_offset;
-    if (buffer_size > INT_MAX)
-    {
-        buffer_size = INT_MAX;
-    }
-    return fgets((char *)&vm->input_buffer[buffer_offset], (int)buffer_size,
-                 stdin);
-}
-
-/* Interpret words from the input buffer.
- *
- * If a word is split at the buffer boundary and eof is false, preserves the
- * partial word and sets out_buffer_offset for the next read.
- */
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_interpret(Vm *vm, bool eof, size_t *out_buffer_offset)
-{
-    while (vm->input_buffer_pos < vm->input_buffer_len)
-    {
-        Vm_Buffer_Range word_range = {0};
-        TRY(vm_next_word(vm, &word_range));
-        const size_t word_len = word_range.end - word_range.start;
-
-        // End of buffer, but input still remains
-        if (!eof && word_range.end == VM_INPUT_BUFFER_NUM_BYTES - 1)
-        {
-            // Word spans the entire buffer and is too long to process.
-            if (word_range.start == 0)
-            {
-                return VM_ERROR_WORD_TOO_LONG;
-            }
-
-            memmove(vm->input_buffer, vm->input_buffer + word_range.start,
-                    word_len);
-            vm->input_buffer_pos = word_len;
-            vm->input_buffer_len = word_len;
-            *out_buffer_offset = vm->input_buffer_pos;
-            return VM_ERROR_OK;
-        }
-
-        // No more words to process
-        if (word_len == 0)
-        {
-            return VM_ERROR_OK;
-        }
-
-        Vm_Maybe_Cell xt = {0};
-        TRY(vm_find_word(vm, word_len,
-                         (const char *)vm->input_buffer + word_range.start,
-                         &xt));
-        if (SOME(xt))
-        {
-            if (xt.data < VM_BUILTIN_HANDLER_COUNT)
-            {
-                Vm_Error err = vm_builtin_handlers[xt.data](vm);
-                if (err != VM_ERROR_OK)
-                {
-                    // TODO: Give user more context about this error
-                    return err;
-                }
-                continue;
-            }
-
-            TODO("execute colon definition");
-        }
-
-        Vm_Maybe_Cell parsed_integer = {0};
-        TRY(vm_parse_integer_literal(
-            word_len, (const char *)vm->input_buffer + word_range.start,
-            &parsed_integer));
-        if (SOME(parsed_integer))
-        {
-            TRY(vm_pstack_push(vm, parsed_integer.data));
-            continue;
-        }
-
-        // TODO: Handle other literals (e.g. floats, strings)
-
-        // TODO: Give user more context about this error
-        // NOTE: When an error occurs, should we go back to the prompt?
-        return VM_ERROR_UNDEFINED_WORD;
-    }
-
-    return VM_ERROR_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
-vm_start(Vm *vm)
-{
-    vm->mode = VM_MODE_INTERPRET;
-
-    size_t buffer_offset = 0;
-    while (vm_read_input(vm, buffer_offset) != NULL)
-    {
-        vm->input_buffer_pos = 0;
-        // fgets always null-terminates, so strcspn is safe
-        vm->input_buffer_len = strcspn((char *)vm->input_buffer, "\n");
-        TRY(vm_interpret(vm, feof(stdin), &buffer_offset));
-    }
-
-    if (ferror(stdin))
-    {
-        perror("Failed to read input");
-        return VM_ERROR_ABORT;
-    }
-
-    return VM_ERROR_OK;
+    return err;
 }
 
 /* Human-readable representations of Vm_Error enum values. */
@@ -1043,14 +696,14 @@ vm_report_error(Vm_Error error, const char *context_msg)
 }
 
 static void
-vm_print_stack(Vm *vm)
+vm_print_stack(void)
 {
-    if (vm->psp > 0)
+    if (psp > &pstack[0])
     {
-        printf("<%lu>", vm->psp);
-        for (Cell i = 0; i < vm->psp; i++)
+        printf("<%lu>", psp - &pstack[0]);
+        for (Cell *ptr = &pstack[0]; ptr < psp; ++ptr)
         {
-            printf(" 0x%0*lX", (int)VM_CELL_SIZE, vm->pstack[i]);
+            printf(" 0x%0*lX", (int)VM_CELL_SIZE, *ptr);
         }
     }
     else
@@ -1062,36 +715,26 @@ vm_print_stack(Vm *vm)
 int
 main(void)
 {
-    Vm vm = {0};
     Vm_Error err = VM_ERROR_OK;
 
-    // Reserve first cell with a sentinel value so dictionary entries never
-    // start at address 0. This avoids the ambiguity where the address 0 could
-    // mean an empty value (i.e. NULL) or the first entry in the dictionary.
-    err = vm_store_cell(&vm, (Cell)-1);
-    if (err != VM_ERROR_OK)
-    {
-        vm_report_error(err, "failed to reserve sentinel cell");
-        return EXIT_FAILURE;
-    }
-
-    err = vm_register_builtins(&vm);
+    err = vm_register_builtins();
     if (err != VM_ERROR_OK)
     {
         vm_report_error(err, "failed to register builtins");
         return EXIT_FAILURE;
     }
 
-    err = vm_start(&vm);
-    if (err == VM_ERROR_OK)
+    err = vm_start();
+    assert(err != VM_ERROR_OK && "unexpected VM_ERROR_OK");
+    if (err == VM_ERROR_BYE)
     {
-        vm_print_stack(&vm);
+        vm_print_stack();
         puts(" ok");
     }
     else
     {
         // TODO: Provide better error diagnostics
-        vm_print_stack(&vm);
+        vm_print_stack();
         puts(" err");
         fprintf(stderr, "%s\n", vm_error_as_string(err));
         return EXIT_FAILURE;
