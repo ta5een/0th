@@ -527,10 +527,18 @@ VM_BUILTIN_DEFINE(push_literal)(void)
 
 VM_BUILTIN_DEFINE(execute)(void)
 {
-    Cell token = 0;
-    TRY(vm_pstack_pop(&token));
+    Cell xt = 0;
+    TRY(vm_pstack_pop(&xt));
+
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
-    iptr = (Vm_Builtin_Handler **)token;
+    Cell *validated_xt = (Cell *)xt;
+    REQUIRE(VM_ADDR_ALIGNED(validated_xt) && &memory.cells[0] <= validated_xt &&
+            validated_xt < &memory.cells[VM_MEMORY_SIZE / VM_CELL_SIZE])
+    {
+        return VM_ERROR_INVALID_MEMORY_ADDRESS;
+    }
+
+    iptr = (Vm_Builtin_Handler **)validated_xt;
     return (**iptr)();
 }
 
