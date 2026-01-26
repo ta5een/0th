@@ -93,25 +93,6 @@ typedef double FCell;
     #define VM_FSTACK_COUNT (6U)
 #endif
 
-/* Length and flags byte for dictionary word names
- *
- * Each word's name is prefixed by a single byte that packs both the name
- * length and flags. This is illustrated in the bit diagram below:
- *
- *   7 6 5 4 3 2 1 0
- *   │ │ │ └─┴─┴─┴─┴─ word name length (5 bits, 0-31 chars)
- *   │ │ └─────────── hidden flag
- *   │ └───────────── (unused, reserved for future)
- *   └─────────────── immediate flag
- *
- * VM_DICT_NAME_LENGTH_MASK extracts just the length bits when reading
- * dictionary entries during word lookup.
- */
-#define VM_DICT_NAME_LENGTH_MASK (0x1f)
-#define VM_DICT_FLAG_NONE        (0x0)
-#define VM_DICT_FLAG_HIDDEN      (0x20)
-#define VM_DICT_FLAG_IMMEDIATE   (0x80)
-
 /* A list of all possible error codes.
  *
  * New errors may be added, but VM_ERROR_UNKNOWN must always be the last entry.
@@ -216,15 +197,6 @@ vm_store_cell(Cell data)
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_store_data(size_t len, const void *data)
-{
-    memcpy(here, data, len);
-    here += len;
-    return VM_OK;
-}
-
-WARN_UNUSED_RESULT
-static Vm_Error
 vm_pstack_push(Cell data)
 {
     REQUIRE(psp < &pstack[VM_PSTACK_COUNT - 1])
@@ -323,34 +295,27 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
 }
 
 #define VM_FOR_EACH_BUILTIN(DO)                                                \
-    DO("{", begin_definition, VM_DICT_FLAG_NONE)                               \
-    DO("}", end_definition, VM_DICT_FLAG_NONE)                                 \
-    DO("C", push_cell_size, VM_DICT_FLAG_NONE)                                 \
-    DO("H", push_here_address, VM_DICT_FLAG_NONE)                              \
-    DO("L", push_latest_address, VM_DICT_FLAG_NONE)                            \
-    DO("@", fetch_cell, VM_DICT_FLAG_NONE)                                     \
-    DO("!", store_cell, VM_DICT_FLAG_NONE)                                     \
-    DO("$", fetch_byte, VM_DICT_FLAG_NONE)                                     \
-    DO(".", store_byte, VM_DICT_FLAG_NONE)                                     \
-    DO("f", find_builtin, VM_DICT_FLAG_NONE)                                   \
-    DO("j", jump_conditional, VM_DICT_FLAG_NONE)                               \
-    DO("J", jump_unconditional, VM_DICT_FLAG_NONE)                             \
-    DO("k", get_next_char, VM_DICT_FLAG_NONE)                                  \
-    DO("l", push_literal, VM_DICT_FLAG_NONE)                                   \
-    DO("x", execute, VM_DICT_FLAG_NONE)                                        \
-    DO("+", plus, VM_DICT_FLAG_NONE)                                           \
-    DO("-", minus, VM_DICT_FLAG_NONE)                                          \
-    DO("=", equal, VM_DICT_FLAG_NONE)
+    DO('{', begin_definition)                                                  \
+    DO('}', end_definition)                                                    \
+    DO('C', push_cell_size)                                                    \
+    DO('H', push_here_address)                                                 \
+    DO('L', push_latest_address)                                               \
+    DO('@', fetch_cell)                                                        \
+    DO('!', store_cell)                                                        \
+    DO('$', fetch_byte)                                                        \
+    DO('.', store_byte)                                                        \
+    DO('f', find_builtin)                                                      \
+    DO('j', jump_conditional)                                                  \
+    DO('J', jump_unconditional)                                                \
+    DO('k', get_next_char)                                                     \
+    DO('l', push_literal)                                                      \
+    DO('x', execute)                                                           \
+    DO('+', plus)                                                              \
+    DO('-', minus)                                                             \
+    DO('=', equal)
 
-typedef enum
-{
-#define VM_EMIT_BUILTIN_ID(_name, c_name, _flags) VM_BUILTIN_ID_##c_name,
-    VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_ID)
-#undef VM_EMIT_BUILTIN_ID
-} Vm_Builtin_Id;
-
-#define VM_EMIT_BUILTIN_PROTO(_name, c_name, _flags)                           \
-    static Vm_Error vm_builtin_##c_name(void);
+#define VM_EMIT_BUILTIN_PROTO(_name, fn_name)                                  \
+    static Vm_Error vm_builtin_##fn_name(void);
 VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_PROTO)
 #undef VM_EMIT_BUILTIN_PROTO
 
@@ -362,7 +327,7 @@ VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_PROTO)
  * both builtins and user-defined words.
  */
 static const Vm_Builtin_Handler vm_builtin_handlers[] = {
-#define VM_EMIT_BUILTIN_FN(_name, c_name, _flags) vm_builtin_##c_name,
+#define VM_EMIT_BUILTIN_FN(_name, fn_name) vm_builtin_##fn_name,
     VM_FOR_EACH_BUILTIN(VM_EMIT_BUILTIN_FN)
 #undef VM_EMIT_BUILTIN_FN
 };
@@ -571,35 +536,26 @@ VM_BUILTIN_DEFINE(equal)(void)
  * Creates a dictionary entry with the following structure:
  *
  *   <───────────── dictionary entry header ───────────────>
- *   ┌──────────────────┬──────────┬────────────────╴╴╴╴╴╴╴┬──────────────────┐
- *   │ link             │ length + │ name + padding        │ code field       │
- *   │                  │ flags    │                       │                  │
- *   └─(1 cell)─────────┴─(1 byte)─┴─(n bytes)──────╴╴╴╴╴╴╴┴─(1 cell)─────────┘
+ *   ┌──────────────────┬──────────┬───────────────────────┬──────────────────┐
+ *   │ link             │ length   │ name + padding        │ code field       │
+ *   │                  │          │                       │                  │
+ *   └─(1 cell)─────────┴─(1 byte)─┴─(1 byte + padding)────┴─(1 cell)─────────┘
  *
  * - link:         address of previous word's header (forms linked list)
- * - length+flags: packed byte containing name length and flags
- * - name:         variable-length name string (not null-terminated)
+ * - length:       name length byte (1 for builtins, flag bits unused)
+ * - name:         single character name (not null-terminated)
  * - padding:      zero-padding to align code field to cell boundary
  * - code field:   pointer into vm_builtin_handlers (see dispatch table comment)
- *
- * TODO: The fields in builtin definition entries could be packed tighter since
- *       builtins always have a 1-character name.
  */
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_add_builtin(size_t index, const char *name, Byte name_len, Byte flags)
+vm_add_builtin(char name, const Vm_Builtin_Handler *handler)
 {
-    assert(index < VM_BUILTIN_HANDLER_COUNT && "index out of bounds");
-    assert(name != NULL && "name is NULL");
-    assert(name_len > 0 && "name is empty");
-    assert(name_len <= VM_DICT_NAME_LENGTH_MASK && "name too long");
-    assert((flags & VM_DICT_NAME_LENGTH_MASK) == 0 && "flags overlap length");
-
     Byte *new_latest = here;
     TRY(vm_store_cell((Cell)latest));
-    TRY(vm_store_byte(name_len | flags));
-    TRY(vm_store_data(name_len, name));
-    TRY(vm_store_cell((Cell)&vm_builtin_handlers[index]));
+    TRY(vm_store_byte(1));
+    TRY(vm_store_byte((Byte)name));
+    TRY(vm_store_cell((Cell)handler));
     latest = new_latest;
 
     return VM_OK;
@@ -617,9 +573,8 @@ static Vm_Error
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 vm_register_builtins(void)
 {
-#define VM_REGISTER_BUILTIN(name, c_name, flags)                               \
-    TRY(vm_add_builtin(VM_BUILTIN_ID_##c_name, name, VM_STR_LIT_LENGTH(name),  \
-                       flags));
+    const Vm_Builtin_Handler *ptr = vm_builtin_handlers;
+#define VM_REGISTER_BUILTIN(name, _fn_name) TRY(vm_add_builtin(name, ptr++));
     VM_FOR_EACH_BUILTIN(VM_REGISTER_BUILTIN)
 #undef VM_REGISTER_BUILTIN
 
