@@ -496,14 +496,14 @@ VM_BUILTIN_DEFINE(execute)(void)
     TRY(vm_pstack_pop(&xt));
 
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
-    Cell *validated_xt = (Cell *)xt;
-    REQUIRE(VM_CELL_ALIGNED(validated_xt) && &memory.cells[0] <= validated_xt &&
-            validated_xt < &memory.cells[VM_MEMORY_SIZE / sizeof(Cell)])
+    Cell *valid_xt = (Cell *)xt;
+    REQUIRE(VM_CELL_ALIGNED(valid_xt) && &memory.cells[0] <= valid_xt &&
+            valid_xt < &memory.cells[VM_MEMORY_SIZE / sizeof(Cell)])
     {
         return VM_ERROR_INVALID_MEMORY_ADDRESS;
     }
 
-    iptr = (Vm_Builtin_Handler **)validated_xt;
+    iptr = (Vm_Builtin_Handler **)valid_xt;
     return (**iptr)();
 }
 
