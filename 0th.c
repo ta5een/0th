@@ -301,11 +301,15 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
 }
 
 #define VM_FOR_EACH_BUILTIN(DO)                                                \
+    DO('#', halt)                                                              \
+    DO('Q', abort)                                                             \
     DO('{', begin_definition)                                                  \
     DO('}', end_definition)                                                    \
     DO('C', push_cell_size)                                                    \
     DO('H', push_here_address)                                                 \
     DO('L', push_latest_address)                                               \
+    DO('P', push_psp_address)                                                  \
+    DO('R', push_rsp_address)                                                  \
     DO('@', fetch_cell)                                                        \
     DO('!', store_cell)                                                        \
     DO('$', fetch_byte)                                                        \
@@ -345,6 +349,22 @@ static const Vm_Builtin_Handler vm_builtin_handlers[] = {
 #define VM_BUILTIN_DEFINE(word)                                                \
     WARN_UNUSED_RESULT static Vm_Error vm_builtin_##word
 
+VM_BUILTIN_DEFINE(halt)(void)
+{
+    // Volatile access prevents function from being optimized away
+    volatile int stop = 0;
+    UNUSED(stop);
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(abort)(void)
+{
+    // Volatile access prevents function from being optimized away
+    volatile int stop = 0;
+    UNUSED(stop);
+    return VM_ERROR_ABORT;
+}
+
 VM_BUILTIN_DEFINE(begin_definition)(void)
 {
     TRY(vm_rstack_push((Cell)nptr));
@@ -376,6 +396,18 @@ VM_BUILTIN_DEFINE(push_here_address)(void)
 VM_BUILTIN_DEFINE(push_latest_address)(void)
 {
     TRY(vm_pstack_push((Cell)&latest));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(push_psp_address)(void)
+{
+    TRY(vm_pstack_push((Cell)&psp));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(push_rsp_address)(void)
+{
+    TRY(vm_pstack_push((Cell)&rsp));
     return VM_OK;
 }
 
