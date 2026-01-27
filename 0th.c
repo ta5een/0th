@@ -138,10 +138,15 @@ static union {
     Cell cells[VM_MEMORY_SIZE / sizeof(Cell)];
 } memory;
 
-/* Points to next free byte in memory. */
-static Byte *here = memory.bytes;
+/* Points to next free location in memory (byte or cell view).
+ * NOTE: Ensure here is cell-aligned before using here.cell.
+ */
+static union {
+    Byte *byte;
+    Cell *cell;
+} here = {.byte = memory.bytes};
 /* Cell-aligned address to the most recently-defined word in the dictionary. */
-static Byte *latest = NULL;
+static Cell *latest = NULL;
 
 /* Instruction pointer: points to the code field being executed. */
 static Vm_Builtin_Handler **iptr = NULL;
@@ -169,8 +174,8 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_store_byte(Byte data)
 {
-    *here = data;
-    here += 1;
+    *here.byte = data;
+    here.byte += 1;
     return VM_OK;
 }
 
@@ -178,7 +183,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_align_here(void)
 {
-    while (!VM_CELL_ALIGNED(here))
+    while (!VM_CELL_ALIGNED(here.byte))
     {
         TRY(vm_store_byte(0x0));
     }
@@ -190,8 +195,9 @@ static Vm_Error
 vm_store_cell(Cell data)
 {
     TRY(vm_align_here());
-    memcpy(here, &data, sizeof(Cell));
-    here += sizeof(Cell);
+    // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
+    *here.cell = data;
+    here.cell += 1;
     return VM_OK;
 }
 
@@ -268,7 +274,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
 {
-    Byte *entry = latest;
+    Cell *entry = latest;
     while (entry != NULL)
     {
         enum
@@ -276,22 +282,21 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
             // Length is stored in lower 5 bits of the length+flags byte
             NAME_LEN_MASK = 0x1f
         };
-        Byte name_len = entry[sizeof(Cell)] & NAME_LEN_MASK;
+        Byte name_len = ((Byte *)entry)[sizeof(Cell)] & NAME_LEN_MASK;
         // Name is at offset 1 cell + 1 byte (after link and length+flags byte)
-        char name = (char)entry[sizeof(Cell) + 1];
+        char name = (char)((Byte *)entry)[sizeof(Cell) + 1];
 
         if (name_len == 1 && name == name_to_find)
         {
             result->is = VM_SOME;
-            result->data = (Cell)&entry[sizeof(Cell) * 2];
+            // Code field is at offset 2 cells
+            result->data = (Cell)&entry[2];
             return VM_OK;
         }
 
         // Follow link to previous entry
-        Cell link;
-        memcpy(&link, entry, sizeof(Cell));
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
-        entry = (Byte *)link;
+        entry = (Cell *)entry[0];
     }
 
     // Not found
@@ -589,7 +594,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_add_builtin(char name, const Vm_Builtin_Handler *handler)
 {
-    Byte *new_latest = here;
+    Cell *new_latest = here.cell;
     TRY(vm_store_cell((Cell)latest));
     TRY(vm_store_byte(1));
     TRY(vm_store_byte((Byte)name));
@@ -650,7 +655,7 @@ vm_compile_main_loop(Vm_Builtin_Handler **start)
         {
             // Forward reference to Q - patch later
             // NOLINTNEXTLINE(bugprone-casting-through-void)
-            abort = (Vm_Builtin_Handler **)(void *)here;
+            abort = (Vm_Builtin_Handler **)(void *)here.cell;
             TRY(vm_store_cell(0x0));
             continue;
         }
@@ -658,7 +663,7 @@ vm_compile_main_loop(Vm_Builtin_Handler **start)
         if (instruction == 'Q')
         {
             // Patch forward reference
-            memcpy((void *)abort, (const void *)&here, sizeof(Cell));
+            *(Cell *)abort = (Cell)here.cell;
         }
 
         Vm_Maybe_Cell found_xt_addr = {0};
@@ -683,7 +688,7 @@ vm_start(void)
     TRY(vm_align_here());
 
     // NOLINTNEXTLINE(bugprone-casting-through-void)
-    Vm_Builtin_Handler **start = (Vm_Builtin_Handler **)(void *)here;
+    Vm_Builtin_Handler **start = (Vm_Builtin_Handler **)(void *)here.cell;
     TRY(vm_compile_main_loop(start));
     nptr = start;
 
