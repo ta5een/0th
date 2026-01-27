@@ -138,7 +138,7 @@ static union {
     Cell cells[VM_MEMORY_SIZE / sizeof(Cell)];
 } memory;
 
-/* Next free cell in memory. Compiled words will go here. */
+/* Points to next free byte in memory. */
 static Byte *here = memory.bytes;
 /* Cell-aligned address to the most recently-defined word in the dictionary. */
 static Byte *latest = NULL;
@@ -150,18 +150,18 @@ static Vm_Builtin_Handler **nptr = NULL;
 
 /* Base of the parameter stack. */
 static Cell pstack[VM_PSTACK_COUNT];
-/* Current position in the parameter stack. */
+/* Points to next available cell in pstack. */
 static Cell *psp = pstack;
 
 /* Base of the return stack. */
 static Cell rstack[VM_RSTACK_COUNT];
-/* Current position in the return stack. */
+/* Points to next available cell in rstack. */
 static Cell *rsp = rstack;
 
 #if false
 /* Base of the floating point stack. */
 static FCell fstack[VM_FSTACK_COUNT];
-/* Current position in the floating point stack. */
+/* Points to next available cell in fstack. */
 static FCell *fsp = fstack;
 #endif
 
