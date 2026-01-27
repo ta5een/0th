@@ -626,7 +626,7 @@ vm_start(void)
 
 /* Human-readable representations of Vm_Error enum values. */
 static const char *vm_error_names[] = {
-#define VM_EMIT_ERROR_STR(name, _) "VM_ERROR_" #name,
+#define VM_EMIT_ERROR_STR(name, _) "VM_" #name,
     VM_FOR_EACH_ERROR(VM_EMIT_ERROR_STR)
 #undef VM_EMIT_ERROR_STR
 };
