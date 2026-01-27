@@ -621,20 +621,51 @@ vm_register_builtins(void)
 
 WARN_UNUSED_RESULT
 static Vm_Error
-vm_start(void)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+vm_compile_main_loop(Vm_Builtin_Handler **start)
 {
-    TRY(vm_align_here());
-    // NOLINTNEXTLINE(bugprone-casting-through-void)
-    Vm_Builtin_Handler **start = (Vm_Builtin_Handler **)(void *)here;
+    Vm_Builtin_Handler **abort = NULL;
 
-    const char main_loop[] = {'k', 'f', 'x', 'J'};
-    size_t main_loop_len = sizeof(main_loop);
+    const char main_loop[] =
+        "kf"    // <1:start> read char, find XT (or 0 if not found)
+        "P@C-@" // dup TOS: P@ gets psp, P@C- points to TOS, P@C-@ fetches TOS
+        "j\2"   // if zero, jump to <2:abort>
+        "x"     // otherwise, execute XT
+        "J\1"   // jump to <1:start>
+        "Q"     // <2:abort>
+        ;
+    size_t main_loop_len = VM_STR_LIT_LENGTH(main_loop);
+
     for (size_t i = 0; i < main_loop_len; ++i)
     {
+        char instruction = main_loop[i];
+
+        if (instruction == '\1')
+        {
+            TRY(vm_store_cell((Cell)start));
+            continue;
+        }
+
+        if (instruction == '\2')
+        {
+            // Forward reference to Q - patch later
+            // NOLINTNEXTLINE(bugprone-casting-through-void)
+            abort = (Vm_Builtin_Handler **)(void *)here;
+            TRY(vm_store_cell(0x0));
+            continue;
+        }
+
+        if (instruction == 'Q')
+        {
+            // Patch forward reference
+            memcpy((void *)abort, (const void *)&here, sizeof(Cell));
+        }
+
         Vm_Maybe_Cell found_xt_addr = {0};
-        TRY(vm_find_builtin(main_loop[i], &found_xt_addr));
+        TRY(vm_find_builtin(instruction, &found_xt_addr));
         if (NONE(found_xt_addr))
         {
+            // The interpreter loop is malformed - nothing to do but abort
             return VM_ERROR_ABORT;
         }
 
@@ -642,7 +673,18 @@ vm_start(void)
         TRY(vm_store_cell((Cell)(*(Vm_Builtin_Handler **)found_xt_addr.data)));
     }
 
-    TRY(vm_store_cell((Cell)start));
+    return VM_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
+vm_start(void)
+{
+    TRY(vm_align_here());
+
+    // NOLINTNEXTLINE(bugprone-casting-through-void)
+    Vm_Builtin_Handler **start = (Vm_Builtin_Handler **)(void *)here;
+    TRY(vm_compile_main_loop(start));
     nptr = start;
 
     Vm_Error err = VM_OK;
@@ -650,6 +692,7 @@ vm_start(void)
     {
         iptr = nptr;
         nptr += 1;
+        // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
         err = (**iptr)();
     } while (err == VM_OK);
 
