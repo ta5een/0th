@@ -130,8 +130,8 @@ typedef Vm_Error (*Vm_Builtin_Handler)(void);
 
 /* The program's main memory.
  *
- * Stores dictionary entries for all words (builtin and user-defined),
- * compiled code for user-defined words, and variables.
+ * Contains builtin dictionary entries at startup.
+ * Remaining space is available for use by 0th code.
  */
 static union {
     Byte bytes[VM_MEMORY_SIZE];
