@@ -148,9 +148,9 @@ static union {
 /* Cell-aligned address to the most recently-defined word in the dictionary. */
 static Cell *latest = NULL;
 
-/* Instruction pointer: points to the code field being executed. */
+/* Instruction pointer: points to the current execution token. */
 static Vm_Builtin_Handler **iptr = NULL;
-/* Next pointer: where execution continues in the compiled code stream. */
+/* Next pointer: points to the next execution token. */
 static Vm_Builtin_Handler **nptr = NULL;
 
 /* Base of the parameter stack. */
