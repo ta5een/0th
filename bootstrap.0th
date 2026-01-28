@@ -16,23 +16,57 @@ H@
   k}f@    H@!       H@C+ H!
 L!
 
-\ Line comments are now supported!
+\ No, my cat did not just walk across my keyboard. :-)
 
-\ C ( -- u )          Get size of cell in bytes
-\ H ( -- a-addr )     Get address of here. NOTE: Should this be address-aligned?
-\ L ( -- a-addr )     Get address of latest
-\ @ ( a-addr -- x )   Load cell x from addr
-\ $ ( c-addr -- c )   Load byte c from addr
-\ ! ( x a-addr -- )   Store cell x at addr
-\ . ( c c-addr -- )   Store byte c at addr
-\ f ( c -- xt )       Get execution token of c
-\ j ( ? -- )          Jump to address provided by next input token if ? = 0
-\ J ( -- )            Jump to address provided by next input token
-\ k ( -- c )          Get next byte in input
-\ l ( -- x )          Push next input token as literal
-\ x ( xt -- ... )     Run the execution token
-\ + ( x1 x2 -- x3 )   Push x3 where x3 = x1 + x2
-\ - ( x1 x2 -- x3 )   Push x3 where x3 = x1 - x2
-\ = ( x1 x2 -- ? )    If x1 = x2, pushes -1, else pushes 0
+\ What those cryptic characters above did was define some fundamental words:
+\ U+0020 ( -- ) "space"     no-op to ignore space characters
+\ U+000A ( -- ) "line feed" no-op to ignore newline characters
+\ U+005C ( -- ) "backslash" ignore characters until a newline is encountered
+
+\ Why must ignoring whitespace and line comments need to be defined explicitly?
+\ Because 0th assumes very little about its execution environment. This keeps
+\ the environment simple and portable. When porting to a new system, only the
+\ environment needs to be reimplemented. This bootstrap code stays the same.
+
+\ That said, 0th assumes the following properties of its execution environment:
+\ - It supports two data sizes: bytes as the smallest addressable unit, and
+\   cells large enough to hold addresses and integers.
+\ - It provides a contiguous buffer of bytes as workable memory.
+\ - It provides two stacks for holding cells:
+\     - The parameter stack (pstack) for passing data between words; and
+\     - The return stack (rstack) for control flow.
+\ - It provides a known set of single-character builtin words that perform
+\   operations that cannot be defined in 0th itself. These builtins will be
+\   listed below.
+\ - It initializes 'here' to point to free memory and 'latest' to point to the
+\   most recent builtin. The dictionary, residing in workable memory, already
+\   contains all builtins before bootstrap runs.
+\ - It interprets this source file by reading bytes, looking up each in the
+\   dictionary, and executing its execution token.
+
+\ TODO: Revise builtins
+
+\ # ( -- )            Halt (breakpoint target for debugging)
+\ Q ( -- )            Abort execution with error
+\ C ( -- u )          Push cell size in bytes
+\ H ( -- a-addr )     Push address of 'here' variable
+\ L ( -- a-addr )     Push address of 'latest' variable
+\ P ( -- a-addr )     Push address of 'psp' variable
+\ R ( -- a-addr )     Push address of 'rsp' variable
+\ @ ( a-addr -- x )   Fetch cell from addr
+\ $ ( c-addr -- c )   Fetch byte from addr
+\ ! ( x a-addr -- )   Store cell at addr
+\ . ( c c-addr -- )   Store byte at addr
+\ f ( c -- xt|0 )     Find XT for char c (0 if not found)
+\ j ( ? -- )          If zero, jump to address in next cell
+\ J ( -- )            Jump to address in next cell
+\ k ( -- c )          Read next char from input
+\ l ( -- x )          Push literal from next cell
+\ x ( xt -- ... )     Execute XT
+\ + ( x1 x2 -- x3 )   Add: x3 = x1 + x2
+\ - ( x1 x2 -- x3 )   Subtract: x3 = x1 - x2
+\ = ( x1 x2 -- ? )    Equal: -1 if x1 == x2, else 0
+
+\ TODO: Document dictionary structure
 
 \ vim:ft=forth
