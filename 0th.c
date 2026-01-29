@@ -231,6 +231,19 @@ vm_pstack_pop(Cell *data)
 
 WARN_UNUSED_RESULT
 static Vm_Error
+vm_pstack_peek(Cell *data)
+{
+    REQUIRE(psp > &pstack[0])
+    {
+        return VM_ERROR_PSTACK_UNDERFLOW;
+    }
+
+    *data = *(psp - 1);
+    return VM_OK;
+}
+
+WARN_UNUSED_RESULT
+static Vm_Error
 vm_rstack_push(Cell address)
 {
     REQUIRE(rsp < &rstack[VM_RSTACK_COUNT - 1])
@@ -313,12 +326,15 @@ vm_find_builtin(char name_to_find, Vm_Maybe_Cell *result)
     DO('C', push_cell_size)                                                    \
     DO('H', push_here_address)                                                 \
     DO('L', push_latest_address)                                               \
-    DO('P', push_psp_address)                                                  \
-    DO('R', push_rsp_address)                                                  \
     DO('@', fetch_cell)                                                        \
     DO('!', store_cell)                                                        \
     DO('$', fetch_byte)                                                        \
     DO('.', store_byte)                                                        \
+    DO('"', duplicate)                                                         \
+    DO('_', drop)                                                              \
+    DO('~', swap)                                                              \
+    DO('^', over)                                                              \
+    DO('<', rotate)                                                            \
     DO('f', find_builtin)                                                      \
     DO('j', jump_conditional)                                                  \
     DO('J', jump_unconditional)                                                \
@@ -404,18 +420,6 @@ VM_BUILTIN_DEFINE(push_latest_address)(void)
     return VM_OK;
 }
 
-VM_BUILTIN_DEFINE(push_psp_address)(void)
-{
-    TRY(vm_pstack_push((Cell)&psp));
-    return VM_OK;
-}
-
-VM_BUILTIN_DEFINE(push_rsp_address)(void)
-{
-    TRY(vm_pstack_push((Cell)&rsp));
-    return VM_OK;
-}
-
 VM_BUILTIN_DEFINE(fetch_cell)(void)
 {
     Cell addr = 0;
@@ -456,6 +460,57 @@ VM_BUILTIN_DEFINE(store_byte)(void)
     TRY(vm_pstack_pop(&data));
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     *((Byte *)addr) = (Byte)data;
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(duplicate)(void)
+{
+    Cell data = 0;
+    TRY(vm_pstack_peek(&data));
+    TRY(vm_pstack_push(data));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(drop)(void)
+{
+    Cell ignored = 0;
+    TRY(vm_pstack_pop(&ignored));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(swap)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_pop(&x1));
+    TRY(vm_pstack_push(x2));
+    TRY(vm_pstack_push(x1));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(over)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_peek(&x1));
+    TRY(vm_pstack_push(x2));
+    TRY(vm_pstack_push(x1));
+    return VM_OK;
+}
+
+VM_BUILTIN_DEFINE(rotate)(void)
+{
+    Cell x1 = 0;
+    Cell x2 = 0;
+    Cell x3 = 0;
+    TRY(vm_pstack_pop(&x3));
+    TRY(vm_pstack_pop(&x2));
+    TRY(vm_pstack_pop(&x1));
+    TRY(vm_pstack_push(x2));
+    TRY(vm_pstack_push(x3));
+    TRY(vm_pstack_push(x1));
     return VM_OK;
 }
 
@@ -632,12 +687,12 @@ vm_compile_main_loop(Vm_Builtin_Handler **start)
     Vm_Builtin_Handler **abort = NULL;
 
     const char main_loop[] =
-        "kf"    // <1:start> read char, find XT (or 0 if not found)
-        "P@C-@" // dup TOS: P@ gets psp, P@C- points to TOS, P@C-@ fetches TOS
-        "j\2"   // if zero, jump to <2:abort>
-        "x"     // otherwise, execute XT
-        "J\1"   // jump to <1:start>
-        "Q"     // <2:abort>
+        "kf"  // <1:start> read char, find XT (or 0 if not found)
+        "\""  // duplicate top-of-stack
+        "j\2" // if zero, jump to <2:abort>
+        "x"   // otherwise, execute XT
+        "J\1" // jump to <1:start>
+        "Q"   // <2:abort>
         ;
     size_t main_loop_len = VM_STR_LIT_LENGTH(main_loop);
 
