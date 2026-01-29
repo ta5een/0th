@@ -2,18 +2,18 @@ H@L@H@!H@C+H!k1k0-H@.k:k0-H@k1k0-+.H@C+H!k{f@H@!H@C+H!k}f@H@!H@C+H!L!
 H@L@H@!H@C+H!k1k0-H@.k H@k1k0-+.H@C+H!k{f@H@!H@C+H!k}f@H@!H@C+H!L!
 
 H@
-  L@      H@!       H@C+ H!
-  k1k0-   H@.
-  k\      H@k1k0-+. H@C+ H!
-  k{f@    H@!       H@C+ H!
-  H@
-    kkf@  H@!       H@C+ H!
-    klf@  H@!       H@C+ H!
-    k:k0- H@!       H@C+ H!
-    k=f@  H@!       H@C+ H!
-    kjf@  H@!       H@C+ H!
-          H@!       H@C+ H!
-  k}f@    H@!       H@C+ H!
+L@    H@!H@C+H!
+k1k0- H@.
+k\    H@k1k0-+.H@C+H!
+k{f@  H@!H@C+H!
+H@
+kkf@  H@!H@C+H!
+klf@  H@!H@C+H!
+k:k0- H@!H@C+H!
+k=f@  H@!H@C+H!
+kjf@  H@!H@C+H!
+      H@!H@C+H!
+k}f@  H@!H@C+H!
 L!
 
 \ No, my cat did not just walk across my keyboard. :-)
@@ -68,5 +68,25 @@ L!
 \ = ( x1 x2 -- ? )    Equal: -1 if x1 == x2, else 0
 
 \ TODO: Document dictionary structure
+
+\ Lines 4-17 created the "backslash" word before comments existed.
+\ Here's what it does in detail:
+
+\ H@                \ save 'here' (this word's address)
+\ L@    H@!         \ store 'latest' here
+\       H@C+H!      \ increment 'here' by a cell
+\ k1k0- H@.         \ store byte 0x1 at 'here' (name length)
+\ k\    H@k1k0-+.   \ store byte '\' at ['here' + 1 byte]
+\       H@C+H!      \ increment 'here' by a cell
+\ k{f@  H@!H@C+H!   \ compile '{' - begin definition
+\ H@                \ <loop> save jump target address
+\ kkf@  H@!H@C+H!   \ compile 'k' - read next char
+\ klf@  H@!H@C+H!   \ compile 'l' - push literal
+\ k:k0- H@!H@C+H!   \ compile 10 (0xa) (':' - '0' = '\n')
+\ k=f@  H@!H@C+H!   \ compile '=' - compare with newline
+\ kjf@  H@!H@C+H!   \ compile 'j' - jump if zero
+\       H@!H@C+H!   \ compile <loop> address
+\ k}f@  H@!H@C+H!   \ compile '}' - end definition
+\ L!                \ set latest to this word's address
 
 \ vim:ft=forth
