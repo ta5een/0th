@@ -92,4 +92,54 @@ L!
 \ k}f@  H@!H@C+H!   \ compile '}' - end definition
 \ L!                \ set latest to this word's address
 
+\ , ( x -- ) "comma"
+\ Store cell x 'here'.
+\ Since 'here' is always cell-aligned, subsequent executions of ',' will store
+\ data at cell-intervals one after the other.
+H@ L@H@!H@C+H! k1k0-H@. k,H@k1k0-+.H@C+H!
+k{f@  H@!H@C+H!   \ begin definition
+                  \ ~~~~~~~~~~~~~~~~~~~
+                  \ store x 'here':
+kHf@  H@!H@C+H!   \ ( x -- H )          push variable 'here'
+k@f@  H@!H@C+H!   \ ( x H -- x H@ )     fetch address H@ in variable H
+k!f@  H@!H@C+H!   \ ( x H@ -- )         store x in H@
+                  \ ~~~~~~~~~~~~~~~~~~~
+                  \ increment 'here' by 1 cell:
+kHf@  H@!H@C+H!   \ ( -- H )            push variable 'here'
+k@f@  H@!H@C+H!   \ ( H -- H@ )         fetch address H@ in variable H
+kCf@  H@!H@C+H!   \ ( H@ -- H@ u )      push cell size u
+k+f@  H@!H@C+H!   \ ( H@ u -- H@+u )    add address H@ with u
+kHf@  H@!H@C+H!   \ ( H@+u -- H@+u H )  push variable 'here'
+k!f@  H@!H@C+H!   \ ( H@+u H -- )       store address H@ in 'here'
+                  \ ~~~~~~~~~~~~~~~~~~~
+k}f@  H@!H@C+H!   \ end definition
+L!
+
+\ ' ( "<spaces>c" -- xt ) "tick"
+\ Find execution token xt for the next byte c in the input stream.
+\ Aborts execution if an execution token cannot be found for c.
+\ 
+\ Compiled structure:
+\   J <start>       \ jump to <start>
+\   <abort>: Q      \ abort if not found
+\   <start>: k f "  \ read char, find xt, dup
+\   j <abort>       \ if zero, jump to <abort>
+\ 
+\ We don't know <start> when compiling J, so we:
+\   1. Compiled J with placeholder, save placeholder address
+\   2. Save <abort> address after compiling Q
+\   3. Patch placeholder with current here (now <start>)
+\   4. Compile j, then the saved <abort> address
+\ 
+H@ L@, k1k0-H@. k'H@k1k0-+.H@C+H!
+k{f@,
+  kJf@, H@ k0k0-,   \ compile J + placeholder; save placeholder addr
+  H@                \ save <abort> addr
+  kQf@,
+  H@ < !            \ patch placeholder with <start>
+  kkf@, kff@, k"f@,
+  kjf@, ,           \ compile j + <abort> addr
+k}f@,
+L!
+
 \ vim:ft=forth
