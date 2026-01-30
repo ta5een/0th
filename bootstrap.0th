@@ -19,8 +19,8 @@ L!
 \ No, my cat did not just walk across my keyboard. :-)
 
 \ What those cryptic characters above did was define some fundamental words:
-\ U+0020 ( -- ) "space"     no-op to ignore space characters
 \ U+000A ( -- ) "line feed" no-op to ignore newline characters
+\ U+0020 ( -- ) "space"     no-op to ignore space characters
 \ U+005C ( -- ) "backslash" ignore characters until a newline is encountered
 
 \ Why must ignoring whitespace and line comments need to be defined explicitly?
@@ -47,7 +47,7 @@ L!
 \ TODO: Revise builtins
 
 \ # ( -- )                    Halt (breakpoint target for debugging)
-\ Q ( -- )                    Abort execution with error
+\ Q ( n -- )                  Abort execution with error code n
 \ C ( -- u )                  Push cell size in bytes
 \ H ( -- a-addr )             Push address of 'here' variable
 \ L ( -- a-addr )             Push address of 'latest' variable
@@ -120,10 +120,10 @@ L!
 \ Aborts execution if an execution token cannot be found for c.
 \ 
 \ Compiled structure:
-\   J <start>       \ jump to <start>
-\   <abort>: Q      \ abort if not found
-\   <start>: k f "  \ read char, find xt, dup
-\   j <abort>       \ if zero, jump to <abort>
+\   J <start>           \ jump to <start>
+\   <abort>: l (-11) Q  \ abort with -11 (undefined word) if not found
+\   <start>: k f "      \ read char, find xt, dup
+\   j <abort>           \ if zero, jump to <abort>
 \ 
 \ We don't know <start> when compiling J, so we:
 \   1. Compiled J with placeholder, save placeholder address
@@ -135,9 +135,13 @@ H@ L@, k1k0-H@. k'H@k1k0-+.H@C+H!
 k{f@,
   kJf@, H@ k0k0-,   \ compile J + placeholder; save placeholder addr
   H@                \ save <abort> addr
+  klf@,
+  k0k;-,            \ -11 = '0' - ';'
   kQf@,
   H@ < !            \ patch placeholder with <start>
-  kkf@, kff@, k"f@,
+  kkf@,
+  kff@,
+  k"f@,
   kjf@, ,           \ compile j + <abort> addr
 k}f@,
 L!

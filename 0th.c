@@ -383,10 +383,16 @@ VM_BUILTIN_DEFINE(halt)(void)
 
 VM_BUILTIN_DEFINE(abort)(void)
 {
-    // Volatile access prevents function from being optimized away
-    volatile int stop = 0;
-    UNUSED(stop);
-    return VM_ERROR_ABORT;
+    Cell error = 0;
+    TRY(vm_pstack_pop(&error));
+
+    Vm_Error valid_error = (Vm_Error)error;
+    REQUIRE(VM_ERROR_UNKNOWN <= valid_error && valid_error <= VM_ERROR_ABORT)
+    {
+        valid_error = VM_ERROR_UNKNOWN;
+    }
+
+    return valid_error;
 }
 
 VM_BUILTIN_DEFINE(begin_definition)(void)
@@ -662,13 +668,6 @@ vm_add_builtin(char name, const Vm_Builtin_Handler *handler)
     return VM_OK;
 }
 
-/* Number of bytes in a string literal, excluding the final NULL terminator.
- * Evaluated at compile time.
- *
- * NOTE: Only use with string literals, not char pointers.
- */
-#define VM_STR_LIT_LENGTH(str) (Byte)(sizeof(str) - 1)
-
 WARN_UNUSED_RESULT
 static Vm_Error
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -690,38 +689,41 @@ vm_compile_main_loop(Vm_Builtin_Handler **start)
     Vm_Builtin_Handler **abort = NULL;
 
     const char main_loop[] =
-        "kf"  // <1:start> read char, find XT (or 0 if not found)
-        "\""  // duplicate top-of-stack
-        "j\2" // if zero, jump to <2:abort>
-        "x"   // otherwise, execute XT
-        "J\1" // jump to <1:start>
-        "Q"   // <2:abort>
+        "kf"    // <start>: read char, find XT (or 0 if not found)
+        "\""    // duplicate top-of-stack
+        "j\1"   // if zero, jump to <abort>
+        "x"     // otherwise, execute XT
+        "J\2"   // jump to <start>
+        "\3l\4" // <abort>: push error code
+        "Q"     // abort execution
         ;
-    size_t main_loop_len = VM_STR_LIT_LENGTH(main_loop);
+    size_t main_loop_len = sizeof(main_loop) - 1;
 
     for (size_t i = 0; i < main_loop_len; ++i)
     {
         char instruction = main_loop[i];
 
-        if (instruction == '\1')
+        switch (instruction)
         {
-            TRY(vm_store_cell((Cell)start));
-            continue;
-        }
-
-        if (instruction == '\2')
-        {
-            // Forward reference to Q - patch later
+        case '\1':
+            // Forward reference to <abort> - patch later
             // NOLINTNEXTLINE(bugprone-casting-through-void)
             abort = (Vm_Builtin_Handler **)(void *)here.cell;
             TRY(vm_store_cell(0x0));
             continue;
-        }
-
-        if (instruction == 'Q')
-        {
+        case '\2':
+            TRY(vm_store_cell((Cell)start));
+            continue;
+        case '\3':
             // Patch forward reference
             *(Cell *)abort = (Cell)here.cell;
+            continue;
+        case '\4':
+            // Compile error code literal
+            TRY(vm_store_cell((Cell)VM_ERROR_UNDEFINED_WORD));
+            continue;
+        default:
+            break;
         }
 
         Vm_Maybe_Cell found_xt_addr = {0};
