@@ -83,6 +83,9 @@ typedef double FCell;
  * Forth Kernel". This should be more than sufficient as ANS Forth specifies a
  * minimum of 32 cells for the PSTACK and 24 cells for the RSTACK.
  *
+ * Note that the main loop uses up to 2 temporary cells on PSTACK during word
+ * dispatch, so effective user capacity is VM_PSTACK_COUNT - 2.
+ *
  * FSTACK has a capacity of 6 floating-point cells, which is the minimum
  * required by ANS Forth.
  */
@@ -205,7 +208,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_pstack_push(Cell data)
 {
-    REQUIRE(psp < &pstack[VM_PSTACK_COUNT - 1])
+    REQUIRE(psp < &pstack[VM_PSTACK_COUNT])
     {
         return VM_ERROR_PSTACK_OVERFLOW;
     }
@@ -246,7 +249,7 @@ WARN_UNUSED_RESULT
 static Vm_Error
 vm_rstack_push(Cell address)
 {
-    REQUIRE(rsp < &rstack[VM_RSTACK_COUNT - 1])
+    REQUIRE(rsp < &rstack[VM_RSTACK_COUNT])
     {
         return VM_ERROR_RSTACK_OVERFLOW;
     }
