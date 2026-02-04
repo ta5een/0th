@@ -482,8 +482,8 @@ VM_BUILTIN_DEFINE(duplicate)(void)
 
 VM_BUILTIN_DEFINE(drop)(void)
 {
-    Cell ignored = 0;
-    TRY(vm_pstack_pop(&ignored));
+    Cell dropped = 0;
+    TRY(vm_pstack_pop(&dropped));
     return VM_OK;
 }
 
