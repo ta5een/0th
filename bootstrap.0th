@@ -146,4 +146,17 @@ k{f@,
 k}f@,
 L!
 
+\ c ( "<spaces>c" -- a-addr )
+\ Read next character c and begin creating a new definition at addr.
+\ This will only fill in the dictionary prologue. You will need to end the
+\ definition and update 'latest' yourself.
+H@ L@, k1k0-H@. kcH@k1k0-+.H@C+H!
+'{,
+  'H,'@, 'L,'@,
+  'l,k1k0-, 'H,'@,'.,         \ store name length 0x1 here
+  'k, 'H,'@,'l,k1k0-,'+, '.,  \ read c and store it at next byte after 0x1
+  'H,'@,'l,C,'+,'H,'!,
+'},
+L!
+
 \ vim:ft=forth
