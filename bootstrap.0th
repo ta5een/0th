@@ -51,21 +51,21 @@ L!
 \ C ( -- u )                  Push cell size in bytes
 \ H ( -- a-addr )             Push address of 'here' variable
 \ L ( -- a-addr )             Push address of 'latest' variable
-\ @ ( a-addr -- x )           Fetch cell from addr
-\ $ ( c-addr -- c )           Fetch byte from addr
-\ ! ( x a-addr -- )           Store cell at addr
-\ . ( c c-addr -- )           Store byte at addr
+\ @ ( a-addr -- x )           Fetch cell x from addr
+\ $ ( c-addr -- c )           Fetch byte c from addr
+\ ! ( x a-addr -- )           Store cell x at addr
+\ . ( c c-addr -- )           Store byte c at addr
 \ " ( x -- x x )              Duplicate x
 \ _ ( x -- )                  Drop x from the stack
 \ ~ ( x1 x2 -- x2 x1 )        Swap the top two stack items
 \ ^ ( x1 x2 -- x1 x2 x1 )     Place a copy of x1 on top of the stack
 \ < ( x1 x2 x3 -- x2 x3 x1 )  Rotate the top three stack entries
-\ f ( c -- xt|f )             Find XT for char c (returns false if not found)
+\ f ( c -- xt|0 )             Find execution token for c, or 0 if not found
 \ j ( ? -- )                  If zero, jump to address in next cell
 \ J ( -- )                    Jump to address in next cell
-\ k ( -- c )                  Read next char from input
-\ l ( -- x )                  Push literal from next cell
-\ x ( xt -- ... )             Execute XT
+\ k ( -- c )                  Read next character c from the input stream
+\ l ( -- x )                  Push literal stored in the next cell
+\ x ( xt -- ... )             Execute the XT
 \ + ( x1 x2 -- x3 )           Add: x3 = x1 + x2
 \ - ( x1 x2 -- x3 )           Subtract: x3 = x1 - x2
 \ = ( x1 x2 -- ? )            Equal: -1 if x1 == x2, else 0
@@ -116,7 +116,7 @@ k}f@  H@!H@C+H!   \ end definition
 L!
 
 \ ' ( "<spaces>c" -- xt ) "tick"
-\ Find execution token xt for the next byte c in the input stream.
+\ Find execution token xt for the next character c in the input stream.
 \ Aborts execution if an execution token cannot be found for c.
 \ 
 \ Compiled structure:
